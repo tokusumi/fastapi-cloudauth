@@ -5,3 +5,5 @@ env
 .mypy_cache
 .pytest_cache
 poetry.lock
+.coverage
+scripts/load_env.sh

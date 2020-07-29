@@ -21,8 +21,10 @@ class JWKS(BaseModel):
 
 
 class Base:
-    def __init__(self, url: str, auto_error=True, *args, **kwargs):
-        jwks = JWKS.fromurl(url)
+    def __init__(self, jwks: JWKS, auto_error=True, *args, **kwargs):
+        """
+        auto-error: if False, return payload as b'null' for invalid token.
+        """
         self.jwks_to_key = {_jwk["kid"]: jwk.construct(_jwk) for _jwk in jwks.keys}
         self.auto_error = auto_error
 
@@ -51,9 +53,9 @@ class Base:
     async def __call__(
         self, http_auth: Optional[HTTPAuthorizationCredentials] = Depends(HTTPBearer())
     ) -> Optional[Dict[str, str]]:
-        if not http_auth:
-            # error handling is included in HTTPBearer
-            return None
+        # if not http_auth:
+        #     # error handling is included in HTTPBearer
+        #     return None
 
         public_key = self.get_publickey(http_auth)
         if not public_key:

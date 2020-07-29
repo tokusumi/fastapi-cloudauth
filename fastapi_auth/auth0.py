@@ -1,7 +1,8 @@
-from .base import Base
+from .base import Base, JWKS
 
 
 class Auth0(Base):
     def __init__(self, domain: str, *args, **kwargs):
         url = f"https://{domain}/.well-known/jwks.json"
-        super().__init__(url, *args, **kwargs)
+        jwks = JWKS.fromurl(url)
+        super().__init__(jwks, *args, **kwargs)
