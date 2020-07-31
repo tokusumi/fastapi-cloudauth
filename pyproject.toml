@@ -16,6 +16,9 @@ pytest-cov = "^2.10.0"
 flake8 = "^3.8.3"
 mypy = "^0.782"
 black = "^19.10b0"
+uvicorn = "^0.11.8"
+botocore = "^1.17.32"
+boto3 = "^1.14.32"
 
 [build-system]
 requires = ["poetry>=0.12"]
