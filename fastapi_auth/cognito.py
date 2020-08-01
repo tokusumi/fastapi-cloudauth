@@ -14,9 +14,8 @@ class Cognito(TokenVerifier):
 
 
 class CognitoClaims(BaseModel):
-    username: str = Field("", alias="cognito:username")
-    name: str = Field("", alias="given_name")
-    email: str = Field("", alias="email")
+    username: str = Field(alias="cognito:username")
+    email: str = Field(None, alias="email")
 
 
 class CognitoCurrentUser(TokenUserInfoGetter):

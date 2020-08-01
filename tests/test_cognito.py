@@ -1,6 +1,6 @@
 import os
 import boto3
-import pytest
+from typing import Optional
 from fastapi import Depends, FastAPI
 from fastapi.testclient import TestClient
 
@@ -61,6 +61,9 @@ class TestCognito:
         auth = Auth(region=region, userPoolId=userPoolId)
         auth_no_error = Auth(region=region, userPoolId=userPoolId, auto_error=False)
         get_current_user = CognitoCurrentUser(region=region, userPoolId=userPoolId)
+        get_current_user_no_error = CognitoCurrentUser(
+            region=region, userPoolId=userPoolId, auto_error=False
+        )
 
         delete_cognito_user()
         add_test_user()
@@ -71,18 +74,18 @@ class TestCognito:
             return payload
 
         @app.get("/no-error/", dependencies=[Depends(auth_no_error)])
-        async def secure_no_error(payload=Depends(auth_no_error)) -> bool:
-            return payload
+        async def secure_no_error(payload=Depends(auth_no_error)):
+            assert payload is None
 
         @app.get("/user/", response_model=CognitoClaims)
-        async def secure_user(current_user: CognitoClaims = Depends(get_current_user),):
+        async def secure_user(current_user: CognitoClaims = Depends(get_current_user)):
             return current_user
 
-        @app.get("/user/no-error/", response_model=CognitoClaims)
+        @app.get("/user/no-error/")
         async def secure_user_no_error(
-            current_user: CognitoClaims = Depends(get_current_user),
+            current_user: Optional[CognitoClaims] = Depends(get_current_user_no_error),
         ):
-            return current_user
+            assert current_user is None
 
         cls.client = TestClient(app)
 
@@ -94,12 +97,13 @@ class TestCognito:
         response = self.client.get(
             "/", headers={"authorization": f"Bearer {self.ACCESS_TOKEN}"}
         )
-        assert response.status_code == 200
+        assert response.status_code == 200, f"{response.json()}"
+        assert response.content == b"true"
 
     def test_no_token(self):
         # handle in fastapi.security.HtTPBearer
         response = self.client.get("/")
-        assert response.status_code == 403
+        assert response.status_code == 403, f"{response.json()}"
 
     def test_incompatible_kid_token(self):
         # manipulate header
@@ -109,53 +113,64 @@ class TestCognito:
             + token
         )
         response = self.client.get("/", headers={"authorization": f"Bearer {token}"})
-        assert response.status_code == 403, "must not be verified"
+        assert response.status_code == 403, f"{response.json()}"
 
         # not auto_error
         response = self.client.get(
             "/no-error/", headers={"authorization": f"Bearer {token}"},
         )
-        assert response.status_code == 200, "must not be verified"
-        assert response.content == b"null"
+        assert response.status_code == 200, f"{response.json()}"
 
     def test_no_kid_token(self):
         # manipulate header
         token = self.ACCESS_TOKEN.split(".", 1)[-1]
         token = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9." + token
         response = self.client.get("/", headers={"authorization": f"Bearer {token}"})
-        assert response.status_code == 403, "must not be verified"
+        assert response.status_code == 403, f"{response.json()}"
 
         # not auto_error
         response = self.client.get(
             "/no-error/", headers={"authorization": f"Bearer {token}"},
         )
-        assert response.status_code == 200, "must not be verified"
-        assert response.content == b"null"
+        assert response.status_code == 200, f"{response.json()}"
 
     def test_not_verified_token(self):
         # manipulate public_key
         response = self.client.get(
             "/", headers={"authorization": f"Bearer {self.ACCESS_TOKEN}"[:-3] + "aaa"}
         )
-        assert response.status_code == 403, "must not be verified"
+        assert response.status_code == 403, f"{response.json()}"
 
         # not auto_error
         response = self.client.get(
             "/no-error/",
             headers={"authorization": f"Bearer {self.ACCESS_TOKEN}"[:-3] + "aaa"},
         )
-        assert response.status_code == 200, "must not be verified"
-        assert response.content == b"null"
+        assert response.status_code == 200, f"{response.json()}"
 
     def test_get_current_user(self):
         response = self.client.get(
             "/user/", headers={"authorization": f"Bearer {self.ID_TOKEN}"}
         )
-        assert response.status_code == 200
+        assert response.status_code == 200, f"{response.json()}"
+        for value in response.json().values():
+            assert value, f"{response.content} failed to parse"
 
     def test_not_verified_user_no_error(self):
         response = self.client.get(
             "/user/no-error/",
             headers={"authorization": f"Bearer {self.ID_TOKEN}"[:-3] + "aaa"},
         )
-        assert response.status_code == 200
+        assert response.status_code == 200, f"{response.json()}"
+
+    def test_insufficient_current_user_info(self):
+        response = self.client.get(
+            "/user/", headers={"authorization": f"Bearer {self.ACCESS_TOKEN}"}
+        )
+        assert response.status_code == 403, f"{response.json()}"
+
+    def test_insufficient_current_user_info_no_error(self):
+        response = self.client.get(
+            "/user/no-error/", headers={"authorization": f"Bearer {self.ACCESS_TOKEN}"}
+        )
+        assert response.status_code == 200, f"{response.json()}"
