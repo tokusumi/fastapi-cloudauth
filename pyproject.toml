@@ -1,5 +1,5 @@
 [tool.poetry]
-name = "fastapi-auth"
+name = "fastapi-cloudauth"
 version = "0.1.0"
 description = ""
 authors = ["tokusumi <tksmtoms@gmail.com>"]

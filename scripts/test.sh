@@ -3,4 +3,4 @@
 set -e
 set -x
 
-pytest --cov=fastapi_auth --cov=tests --cov-report=term-missing tests ${@}
+pytest --cov=fastapi_cloudauth --cov=tests --cov-report=term-missing tests ${@}

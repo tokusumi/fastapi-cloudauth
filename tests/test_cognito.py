@@ -4,8 +4,8 @@ from typing import Optional
 from fastapi import Depends, FastAPI
 from fastapi.testclient import TestClient
 
-from fastapi_auth import Cognito, CognitoCurrentUser
-from fastapi_auth.cognito import CognitoClaims
+from fastapi_cloudauth import Cognito, CognitoCurrentUser
+from fastapi_cloudauth.cognito import CognitoClaims
 
 
 def add_test_user(

@@ -29,7 +29,7 @@ Create a file main.py with:
 ```
 import os
 from fastapi import FastAPI, Depends
-from fastapi_auth.cognito import Cognito, CognitoCurrentUser, CognitoClaims
+from fastapi_cloudauth.cognito import Cognito, CognitoCurrentUser, CognitoClaims
 
 app = FastAPI()
 auth = Cognito(region=os.environ["REGION"], userPoolId=os.environ["USERPOOLID"])

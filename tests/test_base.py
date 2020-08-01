@@ -1,4 +1,4 @@
-from fastapi_auth.base import JWKS, TokenUserInfoGetter, TokenVerifier
+from fastapi_cloudauth.base import JWKS, TokenUserInfoGetter, TokenVerifier
 
 
 def test_raise_error_invalid_set_scope():

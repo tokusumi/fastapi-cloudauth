@@ -5,7 +5,7 @@ from jose import jwt
 from fastapi import Depends, FastAPI
 from fastapi.testclient import TestClient
 
-from fastapi_auth.auth0 import Auth0, Auth0Claims, Auth0CurrentUser
+from fastapi_cloudauth.auth0 import Auth0, Auth0Claims, Auth0CurrentUser
 
 DOMAIN = os.environ["AUTH0_DOMAIN"]
 CLIENTID = os.environ["AUTH0_CLIENTID"]

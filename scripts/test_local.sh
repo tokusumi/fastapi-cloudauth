@@ -3,4 +3,4 @@
 set -e
 
 source ./scripts/load_env.sh
-pytest --cov=fastapi_auth --cov=tests --cov-report=term-missing tests ${@}
+pytest --cov=fastapi_cloudauth --cov=tests --cov-report=term-missing tests ${@}
