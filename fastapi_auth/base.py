@@ -1,5 +1,6 @@
 from typing import List, Dict, Optional, Any, Type
 import requests
+from copy import deepcopy
 from jose import jwk, jwt
 from jose.utils import base64url_decode
 from fastapi import Depends, HTTPException
@@ -22,21 +23,12 @@ class JWKS(BaseModel):
 
 
 class BaseTokenVerifier:
-    def __init__(
-        self,
-        jwks: JWKS,
-        jwks_to_key: Dict = None,
-        auto_error: bool = True,
-        *args,
-        **kwargs
-    ):
+    def __init__(self, jwks: JWKS, auto_error: bool = True, *args, **kwargs):
         """
         auto-error: if False, return payload as b'null' for invalid token.
         """
-        if jwks_to_key is None:
-            self.jwks_to_key = {_jwk["kid"]: jwk.construct(_jwk) for _jwk in jwks.keys}
-        else:
-            self.jwks_to_key = jwks_to_key
+        self.jwks_to_key = {_jwk["kid"]: jwk.construct(_jwk) for _jwk in jwks.keys}
+        self.scope_name: Optional[str] = None
         self.auto_error = auto_error
 
     def get_publickey(self, http_auth: HTTPAuthorizationCredentials):
@@ -55,7 +47,7 @@ class BaseTokenVerifier:
             if self.auto_error:
                 raise HTTPException(
                     status_code=status.HTTP_403_FORBIDDEN,
-                    detail="JWK publiAttribute not found",
+                    detail="JWK public Attribute not found",
                 )
             else:
                 return None
@@ -71,25 +63,63 @@ class BaseTokenVerifier:
         decoded_sig = base64url_decode(encoded_sig.encode())
         is_verified = public_key.verify(message.encode(), decoded_sig)
 
-        return is_verified
-
-
-class TokenVerifier(BaseTokenVerifier):
-    async def __call__(
-        self, http_auth: HTTPAuthorizationCredentials = Depends(HTTPBearer())
-    ) -> Optional[bool]:
-        is_verified = self.verify_token(http_auth)
         if not is_verified:
             if self.auto_error:
                 raise HTTPException(
                     status_code=status.HTTP_403_FORBIDDEN, detail="Not verified"
                 )
-            else:
+
+        return is_verified
+
+
+class TokenVerifier(BaseTokenVerifier):
+    """
+    Verify `Access token` and authorize it based on scope (or groups)
+    """
+
+    scope_key: Optional[str] = None
+
+    def scope(self, scope_name: str):
+        obj = deepcopy(self)
+        obj.scope_name = scope_name
+        if not obj.scope_key:
+            raise AttributeError("declaire scope_key to set scope")
+        return obj
+
+    def verify_scope(self, http_auth: HTTPAuthorizationCredentials) -> bool:
+        claims = jwt.get_unverified_claims(http_auth.credentials)
+        scopes = claims.get(self.scope_key)
+        if isinstance(scopes, str):
+            scopes = {scope.strip() for scope in scopes.split()}
+        if scopes is None or self.scope_name not in scopes:
+            if self.auto_error:
+                raise HTTPException(
+                    status_code=status.HTTP_403_FORBIDDEN,
+                    detail=f"Scope not matched. {claims}",
+                )
+            return False
+        return True
+
+    async def __call__(
+        self, http_auth: HTTPAuthorizationCredentials = Depends(HTTPBearer())
+    ) -> Optional[bool]:
+        is_verified = self.verify_token(http_auth)
+        if not is_verified:
+            return None
+
+        if self.scope_name:
+            is_verified_scope = self.verify_scope(http_auth)
+            if not is_verified_scope:
                 return None
+
         return True
 
 
 class TokenUserInfoGetter(BaseTokenVerifier):
+    """
+    Verify `ID token` and extract user information
+    """
+
     user_info: Type[BaseModel]
 
     def __init__(self, *args, **kwargs):
@@ -120,3 +150,4 @@ class TokenUserInfoGetter(BaseTokenVerifier):
                 )
             else:
                 return None
+

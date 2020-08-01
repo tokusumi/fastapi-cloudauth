@@ -8,30 +8,32 @@ from fastapi_auth import Cognito as Auth, CognitoCurrentUser
 from fastapi_auth.cognito import CognitoClaims
 
 
-def add_test_user(username="test_user@example.com", password="testPass1-"):
-    region = os.environ["COGNITO_REGION"]
-    app_client_id = os.environ["COGNITO_APP_CLIENT_ID"]
-    user_pool_id = os.environ["COGNITO_USERPOOLID"]
-
-    client = boto3.client("cognito-idp", region_name=region)
+def add_test_user(
+    username="test_user@example.com", password="testPass1-", scope: Optional[str] = None
+):
+    client = boto3.client("cognito-idp", region_name=os.environ["COGNITO_REGION"])
     resp = client.sign_up(
-        ClientId=app_client_id,
+        ClientId=os.environ["COGNITO_APP_CLIENT_ID"],
         Username=username,
         Password=password,
-        UserAttributes=[{"Name": "email", "Value": "test_user@example.com"},],
+        UserAttributes=[{"Name": "email", "Value": username},],
     )
-    resp = client.admin_confirm_sign_up(UserPoolId=user_pool_id, Username=username)
+    resp = client.admin_confirm_sign_up(
+        UserPoolId=os.environ["COGNITO_USERPOOLID"], Username=username
+    )
+    if scope:
+        resp = client.admin_add_user_to_group(
+            UserPoolId=os.environ["COGNITO_USERPOOLID"],
+            Username=username,
+            GroupName=scope,
+        )
 
 
 def get_cognito_token(username="test_user@example.com", password="testPass1-"):
-    region = os.environ["COGNITO_REGION"]
-    user_pool_id = os.environ["COGNITO_USERPOOLID"]
-    app_client_id = os.environ["COGNITO_APP_CLIENT_ID"]
-
-    client = boto3.client("cognito-idp", region_name=region)
+    client = boto3.client("cognito-idp", region_name=os.environ["COGNITO_REGION"])
     resp = client.admin_initiate_auth(
-        UserPoolId=user_pool_id,
-        ClientId=app_client_id,
+        UserPoolId=os.environ["COGNITO_USERPOOLID"],
+        ClientId=os.environ["COGNITO_APP_CLIENT_ID"],
         AuthFlow="ADMIN_USER_PASSWORD_AUTH",
         AuthParameters={"USERNAME": username, "PASSWORD": password},
     )
@@ -41,16 +43,19 @@ def get_cognito_token(username="test_user@example.com", password="testPass1-"):
 
 
 def delete_cognito_user(username="test_user@example.com"):
-    region = os.environ["COGNITO_REGION"]
-    user_pool_id = os.environ["COGNITO_USERPOOLID"]
     try:
-        client = boto3.client("cognito-idp", region_name=region)
-        response = client.admin_delete_user(UserPoolId=user_pool_id, Username=username)
+        client = boto3.client("cognito-idp", region_name=os.environ["COGNITO_REGION"])
+        response = client.admin_delete_user(
+            UserPoolId=os.environ["COGNITO_USERPOOLID"], Username=username
+        )
     except:
         pass
 
 
 class TestCognito:
+    scope_user = "test_scope@example.com"
+    scope = "read:test"
+
     @classmethod
     def setup_class(cls):
         app = FastAPI()
@@ -69,12 +74,26 @@ class TestCognito:
         add_test_user()
         cls.ACCESS_TOKEN, cls.ID_TOKEN = get_cognito_token()
 
-        @app.get("/", dependencies=[Depends(auth)])
+        delete_cognito_user(cls.scope_user)
+        add_test_user(cls.scope_user, scope=cls.scope)
+        cls.SCOPE_ACCESS_TOKEN, cls.SCOPE_ID_TOKEN = get_cognito_token(cls.scope_user)
+
+        @app.get("/")
         async def secure(payload=Depends(auth)) -> bool:
             return payload
 
-        @app.get("/no-error/", dependencies=[Depends(auth_no_error)])
+        @app.get("/no-error/")
         async def secure_no_error(payload=Depends(auth_no_error)):
+            assert payload is None
+
+        @app.get("/scope/", dependencies=[Depends(auth.scope(cls.scope))])
+        async def secure_scope() -> bool:
+            pass
+
+        @app.get("/scope/no-error/")
+        async def secure_scope_no_error(
+            payload=Depends(auth_no_error.scope(cls.scope)),
+        ):
             assert payload is None
 
         @app.get("/user/", response_model=CognitoClaims)
@@ -92,6 +111,7 @@ class TestCognito:
     @classmethod
     def teardown_class(cls):
         delete_cognito_user()
+        delete_cognito_user(cls.scope_user)
 
     def test_valid_token(self):
         response = self.client.get(
@@ -145,6 +165,23 @@ class TestCognito:
         response = self.client.get(
             "/no-error/",
             headers={"authorization": f"Bearer {self.ACCESS_TOKEN}"[:-3] + "aaa"},
+        )
+        assert response.status_code == 200, f"{response.json()}"
+
+    def test_valid_scope(self):
+        response = self.client.get(
+            "/scope/", headers={"authorization": f"Bearer {self.SCOPE_ACCESS_TOKEN}"}
+        )
+        assert response.status_code == 200, f"{response.json()}"
+
+    def test_invalid_scope(self):
+        response = self.client.get(
+            "/scope/", headers={"authorization": f"Bearer {self.ACCESS_TOKEN}"}
+        )
+        assert response.status_code == 403, f"{response.json()}"
+
+        response = self.client.get(
+            "/scope/no-error/", headers={"authorization": f"Bearer {self.ACCESS_TOKEN}"}
         )
         assert response.status_code == 200, f"{response.json()}"
 

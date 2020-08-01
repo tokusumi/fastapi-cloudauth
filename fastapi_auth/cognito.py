@@ -7,6 +7,8 @@ class Cognito(TokenVerifier):
     Verify access token of AWS Cognito
     """
 
+    scope_key = "cognito:groups"
+
     def __init__(self, region: str, userPoolId: str, *args, **kwargs):
         url = f"https://cognito-idp.{region}.amazonaws.com/{userPoolId}/.well-known/jwks.json"
         jwks = JWKS.fromurl(url)
