@@ -1,5 +1,6 @@
 # FastAPI Cloud Auth
 
+fastapi-cloudauth supports simple integration between FastAPI and cloud authentication services (AWS Cognito, Auth0). This standardize the interface for some authentication services.
 
 ## Features
 
@@ -10,7 +11,7 @@
 * [X] Support for:
     * [X] [AWS Cognito](https://aws.amazon.com/jp/cognito/)
     * [X] [Auth0](https://auth0.com/jp/)
-    * [] [Firebase Auth]()
+    * [ ] [Firebase Auth]()
 
 ## Example (AWS Cognito)
 
@@ -26,7 +27,7 @@ NOTE: access token is valid for verification and scope-based authentication. ID 
 
 Create a file main.py with:
 
-```
+```python3
 import os
 from fastapi import FastAPI, Depends
 from fastapi_cloudauth.cognito import Cognito, CognitoCurrentUser, CognitoClaims
@@ -69,9 +70,9 @@ Go to http://127.0.0.1:8000/docs.
 
 You will see the automatic interactive API documentation (provided by Swagger UI).
 
-`Authorize :unlock:` button can be available at the endpoints injected dependency.
+`Authorize` :unlock: button can be available at the endpoints injected dependency.
 
 You can put token and try endpoint interactively.
 
-![Swagger UI](https://github.com/tokusumi/fastapi-cloudauth/tree/master/docs/src/authorize_in_doc.jpg)
+![Swagger UI](https://raw.githubusercontent.com/tokusumi/fastapi-cloudauth/master/docs/src/authorize_in_doc.jpg)
 
