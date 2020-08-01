@@ -4,7 +4,7 @@ from typing import Optional
 from fastapi import Depends, FastAPI
 from fastapi.testclient import TestClient
 
-from fastapi_auth import Cognito as Auth, CognitoCurrentUser
+from fastapi_auth import Cognito, CognitoCurrentUser
 from fastapi_auth.cognito import CognitoClaims
 
 
@@ -63,8 +63,8 @@ class TestCognito:
         region = os.environ["COGNITO_REGION"]
         userPoolId = os.environ["COGNITO_USERPOOLID"]
 
-        auth = Auth(region=region, userPoolId=userPoolId)
-        auth_no_error = Auth(region=region, userPoolId=userPoolId, auto_error=False)
+        auth = Cognito(region=region, userPoolId=userPoolId)
+        auth_no_error = Cognito(region=region, userPoolId=userPoolId, auto_error=False)
         get_current_user = CognitoCurrentUser(region=region, userPoolId=userPoolId)
         get_current_user_no_error = CognitoCurrentUser(
             region=region, userPoolId=userPoolId, auto_error=False
