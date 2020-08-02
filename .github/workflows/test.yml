@@ -13,21 +13,13 @@ jobs:
 
     steps:
     - uses: actions/checkout@master
-    - name: Install
-      uses: abatilo/actions-poetry@v1.5.0
-      with:
-        python_version: ${{ matrix.python-version }}
-        poetry_version: 0.12.17
-        working_directory: ./
-        args: install
-
     - name: Run pytest
       uses: abatilo/actions-poetry@v1.5.0
       with:
         python_version: ${{ matrix.python-version }}
         poetry_version: 0.12.17
         working_directory: ./
-        args: run bash scripts/test.sh
+        args: install && poetry run bash scripts/test.sh
       env:
         AUTH0_DOMAIN: ${{ secrets.AUTH0_DOMAIN }}
         AUTH0_CLIENTID: ${{ secrets.AUTH0_CLIENTID }}
