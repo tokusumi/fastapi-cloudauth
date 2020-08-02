@@ -4,6 +4,7 @@ env
 .vscode
 .mypy_cache
 .pytest_cache
+dist
 local
 poetry.lock
 .coverage
