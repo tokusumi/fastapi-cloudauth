@@ -2,6 +2,7 @@
 
 ![Tests](https://github.com/tokusumi/fastapi-cloudauth/workflows/Tests/badge.svg)
 [![codecov](https://codecov.io/gh/tokusumi/fastapi-cloudauth/branch/master/graph/badge.svg)](https://codecov.io/gh/tokusumi/fastapi-cloudauth)
+[![PyPI version](https://badge.fury.io/py/fastapi-cloudauth.svg)](https://badge.fury.io/py/fastapi-cloudauth)
 
 fastapi-cloudauth supports simple integration between FastAPI and cloud authentication services (AWS Cognito, Auth0). This standardize the interface for some authentication services.
 
@@ -19,6 +20,12 @@ fastapi-cloudauth supports simple integration between FastAPI and cloud authenti
 ## Requirements
 
 Python 3.6+
+
+## Install
+
+```console
+$ pip install fastapi-cloudauth
+```
 
 ## Example (AWS Cognito)
 
