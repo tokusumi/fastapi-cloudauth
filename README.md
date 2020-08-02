@@ -1,5 +1,7 @@
 # FastAPI Cloud Auth
 
+![Tests](https://github.com/tokusumi/fastapi-cloudauth/workflows/Tests/badge.svg)
+
 fastapi-cloudauth supports simple integration between FastAPI and cloud authentication services (AWS Cognito, Auth0). This standardize the interface for some authentication services.
 
 ## Features
