@@ -7,10 +7,25 @@ license = "MIT"
 readme = "README.md"
 repository = "https://github.com/tokusumi/fastapi-cloudauth"
 
+include = [
+    "LICENSE",
+]
+keywords = ["FastAPI", "authentication", "Auth0", "AWS Cognito]
+classifiers = [
+    "Environment :: Web Environment",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3 :: Only",
+    "Programming Language :: Python :: 3.6",
+    "Programming Language :: Python :: 3.7",
+    "Programming Language :: Python :: 3.8",
+    "Topic :: Security",
+    "Typing :: Typed",
+]
 [tool.poetry.dependencies]
 python = "^3.6"
 fastapi = "^0.60.1"
-python-jose = "^3.1.0"
+python-jose = "^3.2.0"
 requests = "^2.24.0"
 
 [tool.poetry.dev-dependencies]
