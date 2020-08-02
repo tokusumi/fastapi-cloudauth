@@ -1,0 +1,45 @@
+name: Tests
+on: [push, pull_request]
+
+jobs:
+  pytest:
+    name: pytest
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python-version: [3.6, 3.7, 3.8]
+
+    steps:
+    - uses: actions/checkout@master
+    - name: Install
+      uses: abatilo/actions-poetry@v1.5.0
+      with:
+        python_version: ${{ matrix.python-version }}
+        poetry_version: 0.12.17
+        working_directory: ./
+        args: install
+
+    - name: Run build
+      uses: abatilo/actions-poetry@v1.5.0
+      with:
+        python_version: ${{ matrix.python-version }}
+        poetry_version: 0.12.17
+        working_directory: ./
+        args: build
+
+    - name: Run pytest
+      uses: abatilo/actions-poetry@v1.5.0
+      with:
+        python_version: ${{ matrix.python-version }}
+        poetry_version: 0.12.17
+        working_directory: ./
+        args: run bash scripts/test.sh
+
+    - name: Upload coverage to Codecov  
+      uses: codecov/codecov-action@v1
+      with:
+        token: ${{ secrets.CODECOV_TOKEN }}
+        file: ./coverage.xml
+        flags: unittests
+        name: codecov-umbrella
+        fail_ci_if_error: true
