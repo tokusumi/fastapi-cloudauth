@@ -11,22 +11,6 @@ jobs:
 
     steps:
     - uses: actions/checkout@master
-    - name: Install
-      uses: abatilo/actions-poetry@v1.5.0
-      with:
-        python_version: ${{ matrix.python-version }}
-        poetry_version: 0.12.17
-        working_directory: ./
-        args: install
-
-    - name: Run build
-      uses: abatilo/actions-poetry@v1.5.0
-      with:
-        python_version: ${{ matrix.python-version }}
-        poetry_version: 0.12.17
-        working_directory: ./
-        args: build
-
     - name: Run pytest
       uses: abatilo/actions-poetry@v1.5.0
       with:
@@ -34,6 +18,17 @@ jobs:
         poetry_version: 0.12.17
         working_directory: ./
         args: run bash scripts/test.sh
+      env:
+        AUTH0_DOMAIN: ${{ secrets.AUTH0_DOMAIN }}
+        AUTH0_CLIENTID: ${{ secrets.AUTH0_CLIENTID }}
+        AUTH0_CLIENT_SECRET: ${{ secrets.AUTH0_CLIENT_SECRET }}
+        AUTH0_AUDIENCE: ${{ secrets.AUTH0_AUDIENCE }}
+        AUTH0_CONNECTION: ${{ secrets.AUTH0_CONNECTION }}
+        COGNITO_REGION: ${{ secrets.COGNITO_REGION }}
+        COGNITO_USERPOOLID: ${{ secrets.COGNITO_USERPOOLID }}
+        COGNITO_APP_CLIENT_ID: ${{ secrets.COGNITO_APP_CLIENT_ID }}
+        AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+        AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
 
     - name: Upload coverage to Codecov  
       uses: codecov/codecov-action@v1

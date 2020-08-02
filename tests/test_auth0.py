@@ -1,4 +1,5 @@
 import os
+from sys import version_info as info
 import requests
 from typing import Optional
 from jose import jwt
@@ -15,7 +16,9 @@ CONNECTION = os.environ["AUTH0_CONNECTION"]
 
 
 def add_test_user(
-    username="test_user@example.com", password="testPass1-", scope: Optional[str] = None
+    username=f"test_user{info.major}{info.minor}@example.com",
+    password="testPass1-",
+    scope: Optional[str] = None,
 ):
     resp = requests.post(
         f"https://{DOMAIN}/dbconnections/signup",
@@ -27,7 +30,7 @@ def add_test_user(
             "username": username,
         },
     )
-    print(resp.json())
+
     access_token, _ = get_access_token()
     user_id = jwt.get_unverified_claims(access_token)["sub"]
     default_token = get_default_access_token()
@@ -49,7 +52,9 @@ def add_test_user(
 
 
 def get_access_token(
-    username="test_user@example.com", password="testPass1-", scope: Optional[str] = None
+    username=f"test_user{info.major}{info.minor}@example.com",
+    password="testPass1-",
+    scope: Optional[str] = None,
 ):
     """
     NOTE: the followings setting in Auth0 dashboard is required
@@ -87,7 +92,9 @@ def get_access_token(
 
 
 def get_default_access_token(
-    username="test_user@example.com", password="testPass1-", scope: Optional[str] = None
+    username=f"test_user{info.major}{info.minor}@example.com",
+    password="testPass1-",
+    scope: Optional[str] = None,
 ):
     resp = requests.post(
         f"https://{DOMAIN}/oauth/token",

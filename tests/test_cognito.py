@@ -1,4 +1,5 @@
 import os
+from sys import version_info as info
 import boto3
 from typing import Optional
 from fastapi import Depends, FastAPI
@@ -9,7 +10,9 @@ from fastapi_cloudauth.cognito import CognitoClaims
 
 
 def add_test_user(
-    username="test_user@example.com", password="testPass1-", scope: Optional[str] = None
+    username=f"test_user{info.major}{info.minor}@example.com",
+    password="testPass1-",
+    scope: Optional[str] = None,
 ):
     client = boto3.client("cognito-idp", region_name=os.environ["COGNITO_REGION"])
     resp = client.sign_up(
@@ -29,7 +32,9 @@ def add_test_user(
         )
 
 
-def get_cognito_token(username="test_user@example.com", password="testPass1-"):
+def get_cognito_token(
+    username=f"test_user{info.major}{info.minor}@example.com", password="testPass1-"
+):
     client = boto3.client("cognito-idp", region_name=os.environ["COGNITO_REGION"])
     resp = client.admin_initiate_auth(
         UserPoolId=os.environ["COGNITO_USERPOOLID"],
@@ -42,7 +47,7 @@ def get_cognito_token(username="test_user@example.com", password="testPass1-"):
     return access_token, id_token
 
 
-def delete_cognito_user(username="test_user@example.com"):
+def delete_cognito_user(username=f"test_user{info.major}{info.minor}@example.com"):
     try:
         client = boto3.client("cognito-idp", region_name=os.environ["COGNITO_REGION"])
         response = client.admin_delete_user(
@@ -53,7 +58,7 @@ def delete_cognito_user(username="test_user@example.com"):
 
 
 class TestCognito:
-    scope_user = "test_scope@example.com"
+    scope_user = f"test_scope{info.major}{info.minor}@example.com"
     scope = "read:test"
 
     @classmethod
