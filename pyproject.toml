@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "fastapi-cloudauth"
-version = "0.1.0"
+version = "0.1.1"
 description = "fastapi-cloudauth supports simple integration between FastAPI and cloud authentication services (AWS Cognito, Auth0)."
 authors = ["tokusumi <tksmtoms@gmail.com>"]
 license = "MIT"
