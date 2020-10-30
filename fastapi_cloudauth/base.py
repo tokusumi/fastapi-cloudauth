@@ -1,7 +1,7 @@
 from typing import List, Dict, Optional, Any, Type
 import requests
-from jose import jwk, jwt
 from copy import deepcopy
+from jose import jwk, jwt
 from jose.utils import base64url_decode
 from fastapi import Depends, HTTPException
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
