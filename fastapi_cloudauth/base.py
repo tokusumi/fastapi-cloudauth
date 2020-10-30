@@ -126,6 +126,16 @@ class TokenVerifier(BaseTokenVerifier):
     async def __call__(
         self, http_auth: HTTPAuthorizationCredentials = Depends(HTTPBearer())
     ) -> Optional[bool]:
+        """User access-token verification Shortcut to pass it into dependencies.
+        Use as (`auth` is this instanse and `app` is fastapi.FastAPI instanse):
+        ```
+        from fastapi import Depends
+
+        @app.get("/", dependencies=[Depends(auth)])
+        def api():
+            return "hello"
+        ```
+        """
         is_verified = self.verify_token(http_auth)
         if not is_verified:
             return None
@@ -157,6 +167,16 @@ class TokenUserInfoGetter(BaseTokenVerifier):
     async def __call__(
         self, http_auth: HTTPAuthorizationCredentials = Depends(HTTPBearer())
     ) -> Optional[Type[BaseModel]]:
+        """Get current user and verification with ID-token Shortcut.
+        Use as (`Auth` is this subclass, `auth` is `Auth` instanse and `app` is fastapi.FastAPI instanse):
+        ```
+        from fastapi import Depends
+
+        @app.get("/")
+        def api(current_user: Auth = Depends(auth)):
+            return current_user
+        ```
+        """
         is_verified = self.verify_token(http_auth)
         if not is_verified:
             return None
