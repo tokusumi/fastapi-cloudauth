@@ -1,7 +1,7 @@
 from typing import List, Dict, Optional, Any, Type
 import requests
-from copy import deepcopy
 from jose import jwk, jwt
+from copy import deepcopy
 from jose.utils import base64url_decode
 from fastapi import Depends, HTTPException
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
@@ -30,6 +30,19 @@ class BaseTokenVerifier:
         self.jwks_to_key = {_jwk["kid"]: jwk.construct(_jwk) for _jwk in jwks.keys}
         self.scope_name: Optional[str] = None
         self.auto_error = auto_error
+
+    def clone(self):
+        """create clone instanse"""
+        # In some case, self.jwks_to_key can't pickle (deepcopy).
+        # Tempolary put it aside to deepcopy. Then, undo it at the last line.
+        jwks_to_key = self.jwks_to_key
+        self.jwks_to_key = {}
+        clone = deepcopy(self)
+        clone.jwks_to_key = jwks_to_key
+
+        # undo original instanse
+        self.jwks_to_key = jwks_to_key
+        return clone
 
     def get_publickey(self, http_auth: HTTPAuthorizationCredentials):
         token = http_auth.credentials
@@ -80,11 +93,21 @@ class TokenVerifier(BaseTokenVerifier):
     scope_key: Optional[str] = None
 
     def scope(self, scope_name: str):
-        obj = deepcopy(self)
-        obj.scope_name = scope_name
-        if not obj.scope_key:
+        """User-SCOPE verification Shortcut to pass it into dependencies.
+        Use as (`auth` is this instanse and `app` is fastapi.FastAPI instanse):
+        ```
+        from fastapi import Depends
+
+        @app.get("/", dependencies=[Depends(auth.scope("allowed scope"))])
+        def api():
+            return "hello"
+        ```
+        """
+        clone = self.clone()
+        clone.scope_name = scope_name
+        if not clone.scope_key:
             raise AttributeError("declaire scope_key to set scope")
-        return obj
+        return clone
 
     def verify_scope(self, http_auth: HTTPAuthorizationCredentials) -> bool:
         claims = jwt.get_unverified_claims(http_auth.credentials)
@@ -150,4 +173,3 @@ class TokenUserInfoGetter(BaseTokenVerifier):
                 )
             else:
                 return None
-
