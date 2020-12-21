@@ -59,8 +59,6 @@ def get_tokens(email, password, uid):
 
 def get_test_client():
 
-    auth = Firebase()
-    auth_no_error = Firebase(auto_error=False)
     get_current_user = FirebaseCurrentUser()
     get_current_user_no_error = FirebaseCurrentUser(auto_error=False)
 
