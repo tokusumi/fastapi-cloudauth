@@ -36,6 +36,8 @@ jobs:
         COGNITO_APP_CLIENT_ID: ${{ secrets.COGNITO_APP_CLIENT_ID }}
         AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
         AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+        FIREBASE_APIKEY: ${{ secrets.FIREBASE_APIKEY }}
+        FIREBASE_BASE64_CREDENCIALS: ${{ secrets.FIREBASE_BASE64_CREDENCIALS }}
 
     - name: Upload coverage to Codecov  
       uses: codecov/codecov-action@v1
