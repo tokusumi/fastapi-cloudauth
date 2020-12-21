@@ -26,7 +26,9 @@ def initialize():
     credentials_str = base64.b64decode(credentials_base64)
     credentials_json = json.loads(credentials_str)
     basedir = os.path.dirname(os.path.dirname(__file__))
-    credentials_path = os.path.join(basedir, "credentials", "sa.json")
+    credentials_dirpath = os.path.join(basedir, "credentials")
+    os.makedirs(credentials_dirpath, exist_ok=True)
+    credentials_path = os.path.join(credentials_dirpath, "sa.json")
     with open(credentials_path, "w",) as f:
         json.dump(credentials_json, f)
 
