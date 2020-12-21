@@ -39,7 +39,10 @@ def add_test_user(email, password, uid):
 
 
 def delete_test_user(uid):
-    auth.delete_user(uid)
+    try:
+        auth.delete_user(uid)
+    except firebase_admin._auth_utils.UserNotFoundError:
+        pass
 
 
 def get_tokens(email, password, uid):
@@ -88,10 +91,7 @@ class TestFirebase:
 
         initialize()
 
-        try:
-            delete_user(cls.uid)
-        except firebase_admin._auth_utils.UserNotFoundError:
-            pass
+        delete_test_user(cls.uid)
 
         # create test user
         add_test_user(cls.email, cls.password, cls.uid)
@@ -105,7 +105,7 @@ class TestFirebase:
     @classmethod
     def teardown_class(cls):
         """delete test user"""
-        delete_user(cls.uid)
+        delete_test_user(cls.uid)
 
     def success_case(self, path: str, token: str = None):
         headers = {}
@@ -129,6 +129,9 @@ class TestFirebase:
         assert response.status_code == 403, f"{response.json()}"
         return response
 
+    def test_no_raise_delete_test_user(self):
+        delete_test_user("1")
+
     def test_decode_token(self):
         # access token
         header, payload, *rest = self.ACCESS_TOKEN.split(".")
@@ -150,7 +153,7 @@ class TestFirebase:
         assert id_payload.get("user_id") == self.uid
 
     def test_valid_id_token(self):
-        response = self.success_case("/user/", self.ID_TOKEN)
+        response = self.user_success_case("/user/", self.ID_TOKEN)
 
     def test_no_id_token(self):
         # handle in fastapi.security.HTTPBearer

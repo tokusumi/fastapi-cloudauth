@@ -26,9 +26,8 @@ class JWKS:
         """
         # return cls.parse_obj(requests.get(url).json())
         jwks = requests.get(url).json()
-        if "keys" not in jwks.keys():
-            raise KeyError
-        jwks = {_jwk["kid"]: jwk.construct(_jwk) for _jwk in jwks.get("keys")}
+
+        jwks = {_jwk["kid"]: jwk.construct(_jwk) for _jwk in jwks.get("keys", [])}
         return cls(keys=jwks)
 
     @classmethod
