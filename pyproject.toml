@@ -1,7 +1,7 @@
 [tool.poetry]
 name = "fastapi-cloudauth"
-version = "0.1.3"
-description = "fastapi-cloudauth supports simple integration between FastAPI and cloud authentication services (AWS Cognito, Auth0)."
+version = "0.2.0"
+description = "fastapi-cloudauth supports simple integration between FastAPI and cloud authentication services (AWS Cognito, Auth0, Firebase Authentication)."
 authors = ["tokusumi <tksmtoms@gmail.com>"]
 license = "MIT"
 readme = "README.md"
@@ -10,7 +10,7 @@ repository = "https://github.com/tokusumi/fastapi-cloudauth"
 include = [
     "LICENSE",
 ]
-keywords = ["FastAPI", "authentication", "Auth0", "AWS Cognito"]
+keywords = ["FastAPI", "authentication", "Auth0", "AWS Cognito", "Firebase Authentication"]
 classifiers = [
     "Environment :: Web Environment",
     "License :: OSI Approved :: MIT License",
