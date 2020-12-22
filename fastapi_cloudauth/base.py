@@ -3,6 +3,7 @@ import requests
 from copy import deepcopy
 from jose import jwk, jwt
 from jose.utils import base64url_decode
+from jose.backends.base import Key
 from fastapi import Depends, HTTPException
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from pydantic import BaseModel
@@ -10,8 +11,12 @@ from pydantic.error_wrappers import ValidationError
 from starlette import status
 
 
-class JWKS(BaseModel):
-    keys: List[Dict[str, Any]]
+class JWKS:
+    # keys: List[Dict[str, Any]]
+    keys: Dict[str, Key]
+
+    def __init__(self, keys: Dict[str, Key]):
+        self.keys = keys
 
     @classmethod
     def fromurl(cls, url: str):
@@ -19,7 +24,23 @@ class JWKS(BaseModel):
         get and parse json into jwks from endpoint as follows,
         https://xxx/.well-known/jwks.json
         """
-        return cls.parse_obj(requests.get(url).json())
+        # return cls.parse_obj(requests.get(url).json())
+        jwks = requests.get(url).json()
+
+        jwks = {_jwk["kid"]: jwk.construct(_jwk) for _jwk in jwks.get("keys", [])}
+        return cls(keys=jwks)
+
+    @classmethod
+    def firebase(cls, url: str):
+        """
+        get and parse json into jwks from endpoint for Firebase,
+        """
+        certs = requests.get(url).json()
+        keys = {
+            kid: jwk.construct(publickey, algorithm="RS256")
+            for kid, publickey in certs.items()
+        }
+        return cls(keys=keys)
 
 
 class BaseTokenVerifier:
@@ -27,7 +48,8 @@ class BaseTokenVerifier:
         """
         auto-error: if False, return payload as b'null' for invalid token.
         """
-        self.jwks_to_key = {_jwk["kid"]: jwk.construct(_jwk) for _jwk in jwks.keys}
+        self.jwks_to_key = jwks.keys
+
         self.scope_name: Optional[str] = None
         self.auto_error = auto_error
 
