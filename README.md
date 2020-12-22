@@ -4,7 +4,7 @@
 [![codecov](https://codecov.io/gh/tokusumi/fastapi-cloudauth/branch/master/graph/badge.svg)](https://codecov.io/gh/tokusumi/fastapi-cloudauth)
 [![PyPI version](https://badge.fury.io/py/fastapi-cloudauth.svg)](https://badge.fury.io/py/fastapi-cloudauth)
 
-fastapi-cloudauth supports simple integration between FastAPI and cloud authentication services (AWS Cognito, Auth0). This standardize the interface for some authentication services.
+fastapi-cloudauth supports simple integration between FastAPI and cloud authentication services (AWS Cognito, Auth0, Firebase Authentication). This standardize the interface for some authentication services.
 
 ## Features
 
@@ -15,7 +15,7 @@ fastapi-cloudauth supports simple integration between FastAPI and cloud authenti
 * [X] Support for:
     * [X] [AWS Cognito](https://aws.amazon.com/jp/cognito/)
     * [X] [Auth0](https://auth0.com/jp/)
-    * [ ] [Firebase Auth]()
+    * [x] [Firebase Auth](https://firebase.google.com/docs/auth) (Only ID token)
 
 ## Requirements
 
@@ -90,3 +90,30 @@ You can put token and try endpoint interactively.
 
 ![Swagger UI](https://raw.githubusercontent.com/tokusumi/fastapi-cloudauth/master/docs/src/authorize_in_doc.jpg)
 
+## Example (Firebase Authentication)
+
+### Pre-requirement
+
+* Create a user in Firebase Authentication 
+* Get ID token for the created user
+
+### Create it
+
+Create a file main.py with:
+
+```python3
+from fastapi import FastAPI, Depends
+from fastapi_cloudauth.firebase import FirebaseCurrentUser, FirebaseClaims
+
+app = FastAPI()
+
+get_current_user = FirebaseCurrentUser()
+
+
+@app.get("/user/")
+def secure_user(current_user: FirebaseClaims = Depends(get_current_user)):
+    # ID token is valid
+    return f"Hello, {current_user.user_id}"
+```
+
+Try to run the server and see interactive UI in the same way.
