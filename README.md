@@ -90,6 +90,47 @@ You can put token and try endpoint interactively.
 
 ![Swagger UI](https://raw.githubusercontent.com/tokusumi/fastapi-cloudauth/master/docs/src/authorize_in_doc.jpg)
 
+
+## Example (Auth0)
+
+### Pre-requirement
+
+* Check `domain` of Auth0 that you manage to
+* Create a user assigned `read:users` permission in Auth0 
+* Get Access/ID token for the created user
+
+### Create it
+
+Create a file main.py with:
+
+```python3
+import os
+from fastapi import FastAPI, Depends
+from fastapi_cloudauth.auth0 import Auth0, Auth0CurrentUser, Auth0Claims
+
+app = FastAPI()
+
+auth = Auth0(domain=os.environ["DOMAIN"])
+
+
+@app.get("/", dependencies=[Depends(auth.scope("read:users"))])
+def secure():
+    # access token is valid
+    return "Hello"
+
+
+get_current_user = Auth0CurrentUser(domain=os.environ["DOMAIN"])
+
+
+@app.get("/user/")
+def secure_user(current_user: CognitoClaims = Depends(get_current_user)):
+    # ID token is valid
+    return f"Hello, {current_user.username}"
+```
+
+Try to run the server and see interactive UI in the same way.
+
+
 ## Example (Firebase Authentication)
 
 ### Pre-requirement
