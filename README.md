@@ -86,7 +86,7 @@ You will see the automatic interactive API documentation (provided by Swagger UI
 
 `Authorize` :unlock: button can be available at the endpoints injected dependency.
 
-You can supply a token and try endpoint interactively.
+You can supply a token and try the endpoint interactively.
 
 ![Swagger UI](https://raw.githubusercontent.com/tokusumi/fastapi-cloudauth/master/docs/src/authorize_in_doc.jpg)
 
