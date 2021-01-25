@@ -2,6 +2,7 @@ import os
 import base64
 import json
 from typing import Optional
+from sys import version_info as info
 
 from fastapi import Depends, FastAPI
 from fastapi.testclient import TestClient
@@ -87,9 +88,9 @@ class TestFirebase:
     @classmethod
     def setup_class(cls):
         """set credentials and create test user"""
-        cls.email = "fastapi-cloudauth-user@example.com"
+        cls.email = f"fastapi-cloudauth-user-py{info.major}{info.minor}@example.com"
         cls.password = "secretPassword"
-        cls.uid = "fastapi-cloudauth-test-uid"
+        cls.uid = f"fastapi-cloudauth-test-uid-py{info.major}{info.minor}"
 
         initialize()
 
@@ -138,6 +139,8 @@ class TestFirebase:
         # access token
         header, payload, *rest = self.ACCESS_TOKEN.split(".")
 
+        header += f"{'=' * (len(header) % 4)}"
+        payload += f"{'=' * (len(payload) % 4)}"
         header = json.loads(base64.b64decode(header).decode())
         payload = json.loads(base64.b64decode(payload).decode())
         assert header.get("typ") == "JWT"
