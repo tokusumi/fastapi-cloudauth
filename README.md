@@ -4,7 +4,7 @@
 [![codecov](https://codecov.io/gh/tokusumi/fastapi-cloudauth/branch/master/graph/badge.svg)](https://codecov.io/gh/tokusumi/fastapi-cloudauth)
 [![PyPI version](https://badge.fury.io/py/fastapi-cloudauth.svg)](https://badge.fury.io/py/fastapi-cloudauth)
 
-fastapi-cloudauth supports simple integration between FastAPI and cloud authentication services (AWS Cognito, Auth0, Firebase Authentication). This standardize the interface for some authentication services.
+fastapi-cloudauth standardizes and simplifies the integration between FastAPI and cloud authentication services (AWS Cognito, Auth0, Firebase Authentication).
 
 ## Features
 
@@ -86,7 +86,7 @@ You will see the automatic interactive API documentation (provided by Swagger UI
 
 `Authorize` :unlock: button can be available at the endpoints injected dependency.
 
-You can put token and try endpoint interactively.
+You can supply a token and try the endpoint interactively.
 
 ![Swagger UI](https://raw.githubusercontent.com/tokusumi/fastapi-cloudauth/master/docs/src/authorize_in_doc.jpg)
 
@@ -123,7 +123,7 @@ get_current_user = Auth0CurrentUser(domain=os.environ["DOMAIN"])
 
 
 @app.get("/user/")
-def secure_user(current_user: CognitoClaims = Depends(get_current_user)):
+def secure_user(current_user: Auth0Claims = Depends(get_current_user)):
     # ID token is valid
     return f"Hello, {current_user.username}"
 ```
@@ -161,8 +161,8 @@ Try to run the server and see interactive UI in the same way.
 
 ## Custom claims
 
-We can get values for current user by writing a few lines.
-For Auth0, ID token contains extra values as follows (Ref at [Auth0 official doc](https://auth0.com/docs/tokens)):
+We can get values for the current user by writing a few lines.
+For Auth0, the ID token contains extra values as follows (Ref at [Auth0 official doc](https://auth0.com/docs/tokens)):
 
 ```json
 {
@@ -183,7 +183,7 @@ For Auth0, ID token contains extra values as follows (Ref at [Auth0 official doc
 
 By default, `Auth0CurrentUser` gives `pydantic.BaseModel` object, which has `username` (name) and `email` fields.
 
-Here is a sample code to extract extra user information (adding `user_id`):
+Here is sample code for extracting extra user information (adding `user_id`):
 
 ```python3
 from pydantic import Field
@@ -194,5 +194,5 @@ class CustomAuth0Claims(Auth0Claims):
     user_id: str = Field(alias="sub")
 
 get_current_user = Auth0CurrentUser(domain=DOMAIN)
-get_current_user.user_info = CustomAuth0Claims  # override user info model by custom one.
+get_current_user.user_info = CustomAuth0Claims  # override user info model with a custom one.
 ```
