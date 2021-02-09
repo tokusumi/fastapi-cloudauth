@@ -40,6 +40,7 @@ botocore = "^1.17.32"
 boto3 = "^1.14.32"
 authlib = "^0.15.2"
 firebase-admin = "^4.4.0"
+auth0-python = "^3.14.0"
 
 [build-system]
 requires = ["poetry>=0.12"]

@@ -7,7 +7,8 @@ class Auth0(TokenVerifier):
     Verify access token of auth0
     """
 
-    scope_key = "scope"
+    # scope_key = "scope"
+    scope_key = "permissions"
 
     def __init__(self, domain: str, *args, **kwargs):
         url = f"https://{domain}/.well-known/jwks.json"

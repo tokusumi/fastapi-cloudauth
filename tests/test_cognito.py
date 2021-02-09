@@ -8,6 +8,8 @@ from fastapi.testclient import TestClient
 from fastapi_cloudauth import Cognito, CognitoCurrentUser
 from fastapi_cloudauth.cognito import CognitoClaims
 
+from tests.helpers import BaseTestCloudAuth, decode_token
+
 
 def add_test_user(
     username=f"test_user{info.major}{info.minor}@example.com",
@@ -57,12 +59,13 @@ def delete_cognito_user(username=f"test_user{info.major}{info.minor}@example.com
         pass
 
 
-class TestCognito:
+class CognitoClient(BaseTestCloudAuth):
     scope_user = f"test_scope{info.major}{info.minor}@example.com"
+    user = f"test_user{info.major}{info.minor}@example.com"
+    password = "testPass1-"
     scope = "read:test"
 
-    @classmethod
-    def setup_class(cls):
+    def setup(self):
         app = FastAPI()
 
         region = os.environ["COGNITO_REGION"]
@@ -75,13 +78,15 @@ class TestCognito:
             region=region, userPoolId=userPoolId, auto_error=False
         )
 
-        delete_cognito_user()
-        add_test_user()
-        cls.ACCESS_TOKEN, cls.ID_TOKEN = get_cognito_token()
+        delete_cognito_user(self.user)
+        add_test_user(self.user, self.password)
+        self.ACCESS_TOKEN, self.ID_TOKEN = get_cognito_token(self.user, self.password)
 
-        delete_cognito_user(cls.scope_user)
-        add_test_user(cls.scope_user, scope=cls.scope)
-        cls.SCOPE_ACCESS_TOKEN, cls.SCOPE_ID_TOKEN = get_cognito_token(cls.scope_user)
+        delete_cognito_user(self.scope_user)
+        add_test_user(self.scope_user, self.password, scope=self.scope)
+        self.SCOPE_ACCESS_TOKEN, self.SCOPE_ID_TOKEN = get_cognito_token(
+            self.scope_user, self.password
+        )
 
         @app.get("/")
         async def secure(payload=Depends(auth)) -> bool:
@@ -91,13 +96,13 @@ class TestCognito:
         async def secure_no_error(payload=Depends(auth_no_error)):
             assert payload is None
 
-        @app.get("/scope/", dependencies=[Depends(auth.scope(cls.scope))])
+        @app.get("/scope/", dependencies=[Depends(auth.scope(self.scope))])
         async def secure_scope() -> bool:
             pass
 
         @app.get("/scope/no-error/")
         async def secure_scope_no_error(
-            payload=Depends(auth_no_error.scope(cls.scope)),
+            payload=Depends(auth_no_error.scope(self.scope)),
         ):
             assert payload is None
 
@@ -111,108 +116,22 @@ class TestCognito:
         ):
             assert current_user is None
 
-        cls.client = TestClient(app)
+        self.TESTCLIENT = TestClient(app)
 
-    @classmethod
-    def teardown_class(cls):
-        delete_cognito_user()
-        delete_cognito_user(cls.scope_user)
+    def teardown(self):
+        delete_cognito_user(self.user)
+        delete_cognito_user(self.scope_user)
 
-    def test_valid_token(self):
-        response = self.client.get(
-            "/", headers={"authorization": f"Bearer {self.ACCESS_TOKEN}"}
-        )
-        assert response.status_code == 200, f"{response.json()}"
-        assert response.content == b"true"
+    def decode(self):
+        # access token
+        header, payload, *_ = decode_token(self.ACCESS_TOKEN)
+        assert not payload.get("cognito:groups")
 
-    def test_no_token(self):
-        # handle in fastapi.security.HtTPBearer
-        response = self.client.get("/")
-        assert response.status_code == 403, f"{response.json()}"
+        # scope token
+        scope_header, scope_payload, *_ = decode_token(self.SCOPE_ACCESS_TOKEN)
+        assert self.scope in scope_payload.get("cognito:groups")
 
-    def test_incompatible_kid_token(self):
-        # manipulate header
-        token = self.ACCESS_TOKEN.split(".", 1)[-1]
-        token = (
-            "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCIsImtpZCI6IjIzMDQ5ODE1MWMyMTRiNzg4ZGQ5N2YyMmI4NTQxMGE1In0."
-            + token
-        )
-        response = self.client.get("/", headers={"authorization": f"Bearer {token}"})
-        assert response.status_code == 403, f"{response.json()}"
+        # id token
+        id_header, id_payload, *_ = decode_token(self.ID_TOKEN)
+        assert id_payload.get("email") == self.user
 
-        # not auto_error
-        response = self.client.get(
-            "/no-error/", headers={"authorization": f"Bearer {token}"},
-        )
-        assert response.status_code == 200, f"{response.json()}"
-
-    def test_no_kid_token(self):
-        # manipulate header
-        token = self.ACCESS_TOKEN.split(".", 1)[-1]
-        token = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9." + token
-        response = self.client.get("/", headers={"authorization": f"Bearer {token}"})
-        assert response.status_code == 403, f"{response.json()}"
-
-        # not auto_error
-        response = self.client.get(
-            "/no-error/", headers={"authorization": f"Bearer {token}"},
-        )
-        assert response.status_code == 200, f"{response.json()}"
-
-    def test_not_verified_token(self):
-        # manipulate public_key
-        response = self.client.get(
-            "/", headers={"authorization": f"Bearer {self.ACCESS_TOKEN}"[:-3] + "aaa"}
-        )
-        assert response.status_code == 403, f"{response.json()}"
-
-        # not auto_error
-        response = self.client.get(
-            "/no-error/",
-            headers={"authorization": f"Bearer {self.ACCESS_TOKEN}"[:-3] + "aaa"},
-        )
-        assert response.status_code == 200, f"{response.json()}"
-
-    def test_valid_scope(self):
-        response = self.client.get(
-            "/scope/", headers={"authorization": f"Bearer {self.SCOPE_ACCESS_TOKEN}"}
-        )
-        assert response.status_code == 200, f"{response.json()}"
-
-    def test_invalid_scope(self):
-        response = self.client.get(
-            "/scope/", headers={"authorization": f"Bearer {self.ACCESS_TOKEN}"}
-        )
-        assert response.status_code == 403, f"{response.json()}"
-
-        response = self.client.get(
-            "/scope/no-error/", headers={"authorization": f"Bearer {self.ACCESS_TOKEN}"}
-        )
-        assert response.status_code == 200, f"{response.json()}"
-
-    def test_get_current_user(self):
-        response = self.client.get(
-            "/user/", headers={"authorization": f"Bearer {self.ID_TOKEN}"}
-        )
-        assert response.status_code == 200, f"{response.json()}"
-        for value in response.json().values():
-            assert value, f"{response.content} failed to parse"
-
-    def test_not_verified_user_no_error(self):
-        response = self.client.get(
-            "/user/no-error/",
-            headers={"authorization": f"Bearer {self.ID_TOKEN}"[:-3] + "aaa"},
-        )
-        assert response.status_code == 200, f"{response.json()}"
-
-    def test_insufficient_current_user_info(self):
-        response = self.client.get(
-            "/user/", headers={"authorization": f"Bearer {self.ACCESS_TOKEN}"}
-        )
-        assert response.status_code == 403, f"{response.json()}"
-
-    def test_insufficient_current_user_info_no_error(self):
-        response = self.client.get(
-            "/user/no-error/", headers={"authorization": f"Bearer {self.ACCESS_TOKEN}"}
-        )
-        assert response.status_code == 200, f"{response.json()}"

@@ -175,12 +175,10 @@ class TokenUserInfoGetter(BaseTokenVerifier):
     Verify `ID token` and extract user information
     """
 
-    user_info: Type[BaseModel]
+    user_info: Type[BaseModel] = None
 
     def __init__(self, *args, **kwargs):
-        try:
-            self.user_info
-        except AttributeError:
+        if not self.user_info:
             raise AttributeError(
                 "must assign custom pydantic.BaseModel into class attributes `user_info`"
             )

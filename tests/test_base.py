@@ -1,3 +1,5 @@
+import pytest
+
 from fastapi_cloudauth.base import JWKS, TokenUserInfoGetter, TokenVerifier
 
 
@@ -29,9 +31,5 @@ def test_return_instance_with_scope():
 
 
 def test_forget_def_user_info():
-    try:
-        error_check = False
+    with pytest.raises(AttributeError):
         TokenUserInfoGetter()
-    except AttributeError:
-        error_check = True
-    assert error_check, "user_info is Required to define pydantic model"
