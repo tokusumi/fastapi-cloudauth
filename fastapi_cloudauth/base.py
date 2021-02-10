@@ -13,7 +13,7 @@ from starlette import status
 NOT_AUTHENTICATED = "Not authenticated"
 NO_PUBLICKEY = "JWK public Attribute for authorization token not found"
 NOT_VERIFIED = "Not verified"
-SCOPE_NOT_MATCHED = "Scope not matched."
+SCOPE_NOT_MATCHED = "Scope not matched"
 NOT_VALIDATED_CLAIMS = "Validation Error for Claims"
 
 
@@ -144,8 +144,7 @@ class TokenVerifier(BaseTokenVerifier):
         if scopes is None or self.scope_name not in scopes:
             if self.auto_error:
                 raise HTTPException(
-                    status_code=status.HTTP_403_FORBIDDEN,
-                    detail=SCOPE_NOT_MATCHED.format(claims=claims),
+                    status_code=status.HTTP_403_FORBIDDEN, detail=SCOPE_NOT_MATCHED,
                 )
             return False
         return True
