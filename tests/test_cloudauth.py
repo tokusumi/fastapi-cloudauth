@@ -2,6 +2,13 @@ from typing import List
 
 import pytest
 
+from fastapi_cloudauth.base import (
+    NOT_AUTHENTICATED,
+    NO_PUBLICKEY,
+    NOT_VERIFIED,
+    SCOPE_NOT_MATCHED,
+    NOT_VALIDATED_CLAIMS,
+)
 from tests.helpers import assert_get_response
 from tests.test_auth0 import Auth0Client
 from tests.test_cognito import CognitoClient
@@ -40,9 +47,13 @@ class AccessTokenTestCase(BaseTestCloudAuth):
             client=self.client, endpoint=path, token=token, status_code=200
         )
 
-    def failure_case(self, path: str, token: str = None):
+    def failure_case(self, path: str, token: str = None, detail=""):
         return assert_get_response(
-            client=self.client, endpoint=path, token=token, status_code=403
+            client=self.client,
+            endpoint=path,
+            token=token,
+            status_code=403,
+            detail=detail,
         )
 
     def test_valid_token(self):
@@ -59,7 +70,7 @@ class AccessTokenTestCase(BaseTestCloudAuth):
             "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCIsImtpZCI6IjIzMDQ5ODE1MWMyMTRiNzg4ZGQ5N2YyMmI4NTQxMGE1In0."
             + token
         )
-        self.failure_case("/", token)
+        self.failure_case("/", token, detail=NO_PUBLICKEY)
         # not auto_error
         self.success_case("no-error", token)
 
@@ -67,14 +78,14 @@ class AccessTokenTestCase(BaseTestCloudAuth):
         # manipulate header
         token = self.ACCESS_TOKEN.split(".", 1)[-1]
         token = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9." + token
-        self.failure_case("/", token)
+        self.failure_case("/", token, detail=NOT_AUTHENTICATED)
         # not auto_error
         self.success_case("no-error", token)
 
     def test_not_verified_token(self):
         # manipulate public_key
         token = self.ACCESS_TOKEN[:-3] + "aaa"
-        self.failure_case("/", token)
+        self.failure_case("/", token, detail=NOT_VERIFIED)
         # not auto_error
         self.success_case("no-error", token)
 
@@ -82,7 +93,7 @@ class AccessTokenTestCase(BaseTestCloudAuth):
         self.success_case("/scope/", self.SCOPE_ACCESS_TOKEN)
 
     def test_invalid_scope(self):
-        self.failure_case("/scope/", self.ACCESS_TOKEN)
+        self.failure_case("/scope/", self.ACCESS_TOKEN, detail=SCOPE_NOT_MATCHED)
         self.success_case("/scope/no-error/", self.ACCESS_TOKEN)
 
 
@@ -98,9 +109,13 @@ class IdTokenTestCase(BaseTestCloudAuth):
             assert value, f"{response.content} failed to parse"
         return response
 
-    def failure_case(self, path: str, token: str = None):
+    def failure_case(self, path: str, token: str = None, detail=""):
         return assert_get_response(
-            client=self.client, endpoint=path, token=token, status_code=403
+            client=self.client,
+            endpoint=path,
+            token=token,
+            status_code=403,
+            detail=detail,
         )
 
     def test_valid_id_token(self):
@@ -117,7 +132,7 @@ class IdTokenTestCase(BaseTestCloudAuth):
             "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCIsImtpZCI6IjIzMDQ5ODE1MWMyMTRiNzg4ZGQ5N2YyMmI4NTQxMGE1In0."
             + token
         )
-        self.failure_case("/user/", token)
+        self.failure_case("/user/", token, detail=NO_PUBLICKEY)
         # not auto_error
         self.success_case("/user/no-error/", token)
 
@@ -125,22 +140,22 @@ class IdTokenTestCase(BaseTestCloudAuth):
         # manipulate header
         token = self.ID_TOKEN.split(".", 1)[-1]
         token = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9." + token
-        self.failure_case("/user/", token)
+        self.failure_case("/user/", token, detail=NOT_AUTHENTICATED)
         # not auto_error
         self.success_case("/user/no-error", token)
 
     def test_not_verified_id_token(self):
         # manipulate public_key
         token = f"{self.ID_TOKEN}"[:-3] + "aaa"
-        self.failure_case("/user/", token)
+        self.failure_case("/user/", token, detail=NOT_VERIFIED)
         # not auto_error
         self.success_case("/user/no-error", token)
 
     def test_insufficient_current_user_info(self):
         # verified but token does not contains user info
-        self.failure_case("/user/", self.ACCESS_TOKEN)
+        self.failure_case("/user/invalid/", self.ID_TOKEN, detail=NOT_VALIDATED_CLAIMS)
         # not auto_error
-        self.success_case("/user/no-error", self.ACCESS_TOKEN)
+        self.success_case("/user/invalid/no-error", self.ID_TOKEN)
 
 
 @pytest.mark.auth0

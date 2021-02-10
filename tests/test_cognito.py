@@ -78,6 +78,19 @@ class CognitoClient(BaseTestCloudAuth):
             region=region, userPoolId=userPoolId, auto_error=False
         )
 
+        class CognitoInvalidClaims(CognitoClaims):
+            fake_field: str
+
+        class CognitoFakeCurrentUser(CognitoCurrentUser):
+            user_info = CognitoInvalidClaims
+
+        get_invalid_userinfo = CognitoFakeCurrentUser(
+            region=region, userPoolId=userPoolId
+        )
+        get_invalid_userinfo_no_error = CognitoFakeCurrentUser(
+            region=region, userPoolId=userPoolId, auto_error=False
+        )
+
         delete_cognito_user(self.user)
         add_test_user(self.user, self.password)
         self.ACCESS_TOKEN, self.ID_TOKEN = get_cognito_token(self.user, self.password)
@@ -113,6 +126,20 @@ class CognitoClient(BaseTestCloudAuth):
         @app.get("/user/no-error/")
         async def secure_user_no_error(
             current_user: Optional[CognitoClaims] = Depends(get_current_user_no_error),
+        ):
+            assert current_user is None
+
+        @app.get("/user/invalid/", response_model=CognitoInvalidClaims)
+        async def invalid_userinfo(
+            current_user: CognitoInvalidClaims = Depends(get_invalid_userinfo),
+        ):
+            return current_user  # pragma: no cover
+
+        @app.get("/user/invalid/no-error/")
+        async def invalid_userinfo_no_error(
+            current_user: Optional[CognitoInvalidClaims] = Depends(
+                get_invalid_userinfo_no_error
+            ),
         ):
             assert current_user is None
 

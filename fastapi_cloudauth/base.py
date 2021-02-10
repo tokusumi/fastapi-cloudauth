@@ -13,7 +13,7 @@ from starlette import status
 NOT_AUTHENTICATED = "Not authenticated"
 NO_PUBLICKEY = "JWK public Attribute for authorization token not found"
 NOT_VERIFIED = "Not verified"
-SCOPE_NOT_MATCHED = "Scope not matched. {claims}"
+SCOPE_NOT_MATCHED = "Scope not matched."
 NOT_VALIDATED_CLAIMS = "Validation Error for Claims"
 
 

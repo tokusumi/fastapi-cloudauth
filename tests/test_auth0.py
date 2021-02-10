@@ -191,6 +191,17 @@ class Auth0Client(BaseTestCloudAuth):
         get_current_user = Auth0CurrentUser(domain=DOMAIN)
         get_current_user_no_error = Auth0CurrentUser(domain=DOMAIN, auto_error=False)
 
+        class Auth0InvalidClaims(Auth0Claims):
+            fake_field: str
+
+        class Auth0FakeCurrentUser(Auth0CurrentUser):
+            user_info = Auth0InvalidClaims
+
+        get_invalid_userinfo = Auth0FakeCurrentUser(domain=DOMAIN)
+        get_invalid_userinfo_no_error = Auth0FakeCurrentUser(
+            domain=DOMAIN, auto_error=False
+        )
+
         @app.get("/")
         async def secure(payload=Depends(auth)) -> bool:
             return payload
@@ -216,6 +227,20 @@ class Auth0Client(BaseTestCloudAuth):
         @app.get("/user/no-error/")
         async def secure_user_no_error(
             current_user: Optional[Auth0Claims] = Depends(get_current_user_no_error),
+        ):
+            assert current_user is None
+
+        @app.get("/user/invalid/", response_model=Auth0InvalidClaims)
+        async def invalid_userinfo(
+            current_user: Auth0InvalidClaims = Depends(get_invalid_userinfo),
+        ):
+            return current_user  # pragma: no cover
+
+        @app.get("/user/invalid/no-error/")
+        async def invalid_userinfo_no_error(
+            current_user: Optional[Auth0InvalidClaims] = Depends(
+                get_invalid_userinfo_no_error
+            ),
         ):
             assert current_user is None
 

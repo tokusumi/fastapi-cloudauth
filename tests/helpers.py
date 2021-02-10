@@ -16,13 +16,15 @@ class BaseTestCloudAuth:
     TESTCLIENT = None
 
 
-def assert_get_response(client, endpoint, token, status_code):
+def assert_get_response(client, endpoint, token, status_code, detail=""):
     if token:
         headers = {"authorization": f"Bearer {token}"}
     else:
         headers = {}
     response = client.get(endpoint, headers=headers)
     assert response.status_code == status_code, f"{response.json()}"
+    if detail:
+        assert response.json().get("detail", "") == detail
     return response
 
 

@@ -70,6 +70,15 @@ def get_test_client():
     get_current_user = FirebaseCurrentUser()
     get_current_user_no_error = FirebaseCurrentUser(auto_error=False)
 
+    class FirebaseInvalidClaims(FirebaseClaims):
+        fake_field: str
+
+    class FirebaseFakeCurrentUser(FirebaseCurrentUser):
+        user_info = FirebaseInvalidClaims
+
+    get_invalid_userinfo = FirebaseFakeCurrentUser()
+    get_invalid_userinfo_no_error = FirebaseFakeCurrentUser(auto_error=False)
+
     app = FastAPI()
 
     @app.get("/user/", response_model=FirebaseClaims)
@@ -81,6 +90,20 @@ def get_test_client():
         current_user: Optional[FirebaseClaims] = Depends(get_current_user_no_error),
     ):
         assert current_user is None
+
+        @app.get("/user/invalid/", response_model=FirebaseInvalidClaims)
+        async def invalid_userinfo(
+            current_user: FirebaseInvalidClaims = Depends(get_invalid_userinfo),
+        ):
+            return current_user  # pragma: no cover
+
+        @app.get("/user/invalid/no-error/")
+        async def invalid_userinfo_no_error(
+            current_user: Optional[FirebaseInvalidClaims] = Depends(
+                get_invalid_userinfo_no_error
+            ),
+        ):
+            assert current_user is None
 
     client = TestClient(app)
     return client
