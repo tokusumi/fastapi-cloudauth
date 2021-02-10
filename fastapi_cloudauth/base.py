@@ -10,6 +10,12 @@ from pydantic import BaseModel
 from pydantic.error_wrappers import ValidationError
 from starlette import status
 
+NOT_AUTHENTICATED = "Not authenticated"
+NO_PUBLICKEY = "JWK public Attribute for authorization token not found"
+NOT_VERIFIED = "Not verified"
+SCOPE_NOT_MATCHED = "Scope not matched. {claims}"
+NOT_VALIDATED_CLAIMS = "Validation Error for Claims"
+
 
 class JWKS:
     # keys: List[Dict[str, Any]]
@@ -73,7 +79,7 @@ class BaseTokenVerifier:
         if not kid:
             if self.auto_error:
                 raise HTTPException(
-                    status_code=status.HTTP_403_FORBIDDEN, detail="Not authenticated"
+                    status_code=status.HTTP_403_FORBIDDEN, detail=NOT_AUTHENTICATED
                 )
             else:
                 return None
@@ -81,8 +87,7 @@ class BaseTokenVerifier:
         if not publickey:
             if self.auto_error:
                 raise HTTPException(
-                    status_code=status.HTTP_403_FORBIDDEN,
-                    detail="JWK public Attribute not found",
+                    status_code=status.HTTP_403_FORBIDDEN, detail=NO_PUBLICKEY,
                 )
             else:
                 return None
@@ -101,7 +106,7 @@ class BaseTokenVerifier:
         if not is_verified:
             if self.auto_error:
                 raise HTTPException(
-                    status_code=status.HTTP_403_FORBIDDEN, detail="Not verified"
+                    status_code=status.HTTP_403_FORBIDDEN, detail=NOT_VERIFIED
                 )
 
         return is_verified
@@ -140,7 +145,7 @@ class TokenVerifier(BaseTokenVerifier):
             if self.auto_error:
                 raise HTTPException(
                     status_code=status.HTTP_403_FORBIDDEN,
-                    detail=f"Scope not matched. {claims}",
+                    detail=SCOPE_NOT_MATCHED.format(claims=claims),
                 )
             return False
         return True
@@ -208,8 +213,7 @@ class TokenUserInfoGetter(BaseTokenVerifier):
         except ValidationError:
             if self.auto_error:
                 raise HTTPException(
-                    status_code=status.HTTP_403_FORBIDDEN,
-                    detail="Validation Error for Claims",
+                    status_code=status.HTTP_403_FORBIDDEN, detail=NOT_VALIDATED_CLAIMS,
                 )
             else:
                 return None

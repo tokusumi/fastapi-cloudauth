@@ -118,7 +118,6 @@ class IdTokenTestCase(BaseTestCloudAuth):
             + token
         )
         self.failure_case("/user/", token)
-
         # not auto_error
         self.success_case("/user/no-error/", token)
 
@@ -127,7 +126,6 @@ class IdTokenTestCase(BaseTestCloudAuth):
         token = self.ID_TOKEN.split(".", 1)[-1]
         token = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9." + token
         self.failure_case("/user/", token)
-
         # not auto_error
         self.success_case("/user/no-error", token)
 
@@ -135,9 +133,14 @@ class IdTokenTestCase(BaseTestCloudAuth):
         # manipulate public_key
         token = f"{self.ID_TOKEN}"[:-3] + "aaa"
         self.failure_case("/user/", token)
-
         # not auto_error
         self.success_case("/user/no-error", token)
+
+    def test_insufficient_current_user_info(self):
+        # verified but token does not contains user info
+        self.failure_case("/user/", self.ACCESS_TOKEN)
+        # not auto_error
+        self.success_case("/user/no-error", self.ACCESS_TOKEN)
 
 
 @pytest.mark.auth0
