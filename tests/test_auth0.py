@@ -5,21 +5,52 @@ from typing import Optional
 from jose import jwt
 from fastapi import Depends, FastAPI
 from fastapi.testclient import TestClient
+from auth0.v3.authentication import GetToken
+from auth0.v3.management import Auth0 as Auth0sdk
 
 from fastapi_cloudauth.auth0 import Auth0, Auth0Claims, Auth0CurrentUser
 
+from tests.helpers import BaseTestCloudAuth, decode_token
+
 DOMAIN = os.environ["AUTH0_DOMAIN"]
+MGMT_CLIENTID = os.environ["AUTH0_MGMT_CLIENTID"]
+MGMT_CLIENT_SECRET = os.environ["AUTH0_MGMT_CLIENT_SECRET"]
 CLIENTID = os.environ["AUTH0_CLIENTID"]
 CLIENT_SECRET = os.environ["AUTH0_CLIENT_SECRET"]
 AUDIENCE = os.environ["AUTH0_AUDIENCE"]
-CONNECTION = os.environ["AUTH0_CONNECTION"]
+CONNECTION = "Username-Password-Authentication"
+
+
+def init() -> Auth0sdk:
+    """
+    instantiate Auth0 SDK class
+    Goes to Auth0 dashboard and get followings.
+    DOMAIN: domain of Auth0 Dashboard Backend Management Client's Applications
+    MGMT_CLIENTID: client ID of Auth0 Dashboard Backend Management Client's Applications
+    MGMT_CLIENT_SECRET: client secret of Auth0 Dashboard Backend Management Client's Applications
+    """
+    get_token = GetToken(DOMAIN)
+    token = get_token.client_credentials(
+        MGMT_CLIENTID, MGMT_CLIENT_SECRET, f"https://{DOMAIN}/api/v2/",
+    )
+    mgmt_api_token = token["access_token"]
+
+    auth0 = Auth0sdk(DOMAIN, mgmt_api_token)
+    return auth0
 
 
 def add_test_user(
+    auth0: Auth0sdk,
     username=f"test_user{info.major}{info.minor}@example.com",
     password="testPass1-",
     scope: Optional[str] = None,
 ):
+    """create test user with Auth0 SDK
+    Requirements:
+        CLIENTID: client id of `Default App`. See Applications in Auth0 dashboard
+        AUDIENCE: create custom API in Auth0 dashboard and add custom permisson (`read:test`).
+                    Then, assing that identifier as AUDIENCE.
+    """
     resp = requests.post(
         f"https://{DOMAIN}/dbconnections/signup",
         {
@@ -30,37 +61,43 @@ def add_test_user(
             "username": username,
         },
     )
+    user_id = f"auth0|{resp.json()['_id']}"
 
-    access_token, _ = get_access_token()
+    if scope:
+        auth0.users.add_permissions(
+            user_id,
+            [{"permission_name": scope, "resource_server_identifier": AUDIENCE,}],
+        )
+
+
+def delete_user(
+    auth0: Auth0sdk,
+    username=f"test_user{info.major}{info.minor}@example.com",
+    password="testPass1-",
+):
+    """delete test user with Auth0 SDK"""
+    access_token = get_access_token(username=username, password=password)
+    if not access_token:
+        return
     user_id = jwt.get_unverified_claims(access_token)["sub"]
-    default_token = get_default_access_token()
-    resp = requests.post(
-        f"https://{DOMAIN}/api/v2/users/{user_id}/permissions",
-        headers={
-            "authorization": f"Bearer {default_token}",
-            "cache-control": "no-cache",
-        },
-        data={
-            "permissions": [
-                {
-                    "resource_server_identifier": f"https://{DOMAIN}/api/v2/",
-                    "permission_name": scope,
-                }
-            ]
-        },
-    )
+    auth0.users.delete(user_id)
 
 
 def get_access_token(
-    username=f"test_user{info.major}{info.minor}@example.com",
-    password="testPass1-",
-    scope: Optional[str] = None,
-):
+    username=f"test_user{info.major}{info.minor}@example.com", password="testPass1-",
+) -> Optional[str]:
     """
+    Requirements:
+        DOMAIN: domain of Auth0 Dashboard Backend Management Client's Applications
+        CLIENTID: Set client id of `Default App` in environment variable. See Applications in Auth0 dashboard
+        CLIENT_SECRET: Set client secret of `Default App` in environment variable
+        AUDIENCE: In Auth0 dashboard, create custom applications and API,
+                and add permission `read:test` into that API, 
+                and then copy the audience (identifier) in environment variable.
+
     NOTE: the followings setting in Auth0 dashboard is required
-    - sidebar > Applications > settings > Advanced settings > grant: click `password` on
-    - top right icon > Set General > API Authorization Settings > Default Directory to Username-Password-Authentication
-    NOTE: In Auth0 dashboard, create custom applications and add permission of `read:test` and copy the audience (identifier) in environment variable.
+        - sidebar > Applications > settings > Advanced settings > grant: click `password` on
+        - top right icon > Set General > API Authorization Settings > Default Directory to Username-Password-Authentication            
     """
     resp = requests.post(
         f"https://{DOMAIN}/oauth/token",
@@ -74,188 +111,157 @@ def get_access_token(
             "audience": AUDIENCE,
         },
     )
-    access_token = resp.json()["access_token"]
-    resp = requests.post(
-        f"https://{DOMAIN}/oauth/token",
-        headers={"content-type": "application/x-www-form-urlencoded"},
-        data={
-            "grant_type": "password",
-            "username": username,
-            "password": password,
-            "client_id": CLIENTID,
-            "client_secret": CLIENT_SECRET,
-        },
-    )
-    id_token = resp.json()["id_token"]
-
-    return access_token, id_token
-
-
-def get_default_access_token(
-    username=f"test_user{info.major}{info.minor}@example.com",
-    password="testPass1-",
-    scope: Optional[str] = None,
-):
-    resp = requests.post(
-        f"https://{DOMAIN}/oauth/token",
-        headers={"content-type": "application/x-www-form-urlencoded"},
-        data={
-            "grant_type": "password",
-            "username": username,
-            "password": password,
-            "client_id": CLIENTID,
-            "client_secret": CLIENT_SECRET,
-            "audience": f"https://{DOMAIN}/api/v2/",
-        },
-    )
-    access_token = resp.json()["access_token"]
+    access_token = resp.json().get("access_token")
     return access_token
 
 
-scope = "read:test"
-add_test_user(scope=scope)
-ACCESS_TOKEN, ID_TOKEN = get_access_token()
-DEFAULT_ACCESS_TOKEN = get_default_access_token()
+def get_id_token(
+    username=f"test_user{info.major}{info.minor}@example.com", password="testPass1-",
+) -> Optional[str]:
+    """
+    Requirements:
+        DOMAIN: domain of Auth0 Dashboard Backend Management Client's Applications
+        CLIENTID: Set client id of `Default App` in environment variable. See Applications in Auth0 dashboard
+        CLIENT_SECRET: Set client secret of `Default App` in environment variable
+        AUDIENCE: In Auth0 dashboard, create custom applications and API,
+                and add permission `read:test` into that API, 
+                and then copy the audience (identifier) in environment variable.
 
-
-app = FastAPI()
-
-auth = Auth0(domain=DOMAIN)
-auth_no_error = Auth0(domain=DOMAIN, auto_error=False)
-get_current_user = Auth0CurrentUser(domain=DOMAIN)
-get_current_user_no_error = Auth0CurrentUser(domain=DOMAIN, auto_error=False)
-
-
-@app.get("/", dependencies=[Depends(auth)])
-async def secure(payload=Depends(auth)) -> bool:
-    return payload
-
-
-@app.get("/no-error/", dependencies=[Depends(auth_no_error)])
-async def secure_no_error(payload=Depends(auth_no_error)) -> bool:
-    return payload
-
-
-@app.get("/scope/", dependencies=[Depends(auth.scope(scope))])
-async def secure_scope() -> bool:
-    pass
-
-
-@app.get("/scope/no-error/")
-async def secure_scope_no_error(payload=Depends(auth_no_error.scope(scope)),):
-    assert payload is None
-
-
-@app.get("/user/", response_model=Auth0Claims)
-async def secure_user(current_user: Auth0Claims = Depends(get_current_user)):
-    return current_user
-
-
-@app.get("/user/no-error/")
-async def secure_user_no_error(
-    current_user: Optional[Auth0Claims] = Depends(get_current_user_no_error),
-):
-    assert current_user is None
-
-
-client = TestClient(app)
-
-
-def test_valid_token():
-    response = client.get("/", headers={"authorization": f"Bearer {ACCESS_TOKEN}"})
-    assert response.status_code == 200
-
-
-def test_no_token():
-    # handle in fastapi.security.HtTPBearer
-    response = client.get("/")
-    assert response.status_code == 403
-
-
-def test_incompatible_kid_token():
-    # manipulate header
-    token = ACCESS_TOKEN.split(".", 1)[-1]
-    token = (
-        "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCIsImtpZCI6IjIzMDQ5ODE1MWMyMTRiNzg4ZGQ5N2YyMmI4NTQxMGE1In0."
-        + token
+    NOTE: the followings setting in Auth0 dashboard is required
+        - sidebar > Applications > settings > Advanced settings > grant: click `password` on
+        - top right icon > Set General > API Authorization Settings > Default Directory to Username-Password-Authentication            
+    """
+    resp = requests.post(
+        f"https://{DOMAIN}/oauth/token",
+        headers={"content-type": "application/x-www-form-urlencoded"},
+        data={
+            "grant_type": "password",
+            "username": username,
+            "password": password,
+            "client_id": CLIENTID,
+            "client_secret": CLIENT_SECRET,
+        },
     )
-    response = client.get("/", headers={"authorization": f"Bearer {token}"})
-    assert response.status_code == 403, "must not be verified"
-
-    # not auto_error
-    response = client.get("/no-error/", headers={"authorization": f"Bearer {token}"},)
-    assert response.status_code == 200, "must not be verified"
-    assert response.content == b"null"
+    id_token = resp.json().get("id_token")
+    return id_token
 
 
-def test_no_kid_token():
-    # manipulate header
-    token = ACCESS_TOKEN.split(".", 1)[-1]
-    token = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9." + token
-    response = client.get("/", headers={"authorization": f"Bearer {token}"})
-    assert response.status_code == 403, "must not be verified"
+class Auth0Client(BaseTestCloudAuth):
+    """
+    NOTE: RBAC setting must be able
+    """
 
-    # not auto_error
-    response = client.get("/no-error/", headers={"authorization": f"Bearer {token}"},)
-    assert response.status_code == 200, "must not be verified"
-    assert response.content == b"null"
+    username = f"test_user{info.major}{info.minor}@example.com"
+    password = "testPass1-"
+    scope = "read:test"
 
+    def setup(self):
+        auth0sdk = init()
 
-def test_not_verified_token():
-    # manipulate public_key
-    response = client.get(
-        "/", headers={"authorization": f"Bearer {ACCESS_TOKEN}"[:-3] + "aaa"}
-    )
-    assert response.status_code == 403, "must not be verified"
+        self.scope_username = (
+            f"{self.scope.replace(':', '-')}{self.username}"
+            if self.scope
+            else self.username
+        )
 
-    # not auto_error
-    response = client.get(
-        "/no-error/", headers={"authorization": f"Bearer {ACCESS_TOKEN}"[:-3] + "aaa"},
-    )
-    assert response.status_code == 200, "must not be verified"
-    assert response.content == b"null"
+        delete_user(auth0sdk, username=self.username, password=self.password)
+        add_test_user(auth0sdk, username=self.username, password=self.password)
+        self.ACCESS_TOKEN = get_access_token(
+            username=self.username, password=self.password
+        )
+        self.ID_TOKEN = get_id_token(username=self.username, password=self.password)
 
+        delete_user(auth0sdk, username=self.scope_username)
+        add_test_user(
+            auth0sdk,
+            username=self.scope_username,
+            password=self.password,
+            scope=self.scope,
+        )
+        self.SCOPE_ACCESS_TOKEN = get_access_token(
+            username=self.scope_username, password=self.password
+        )
 
-def test_valid_scope():
-    response = client.get(
-        "/scope/", headers={"authorization": f"Bearer {ACCESS_TOKEN}"}
-    )
-    assert response.status_code == 200, f"{response.json()}"
+        self.auth0sdk = auth0sdk
 
+        app = FastAPI()
 
-def test_invalid_scope():
-    response = client.get(
-        "/scope/", headers={"authorization": f"Bearer {DEFAULT_ACCESS_TOKEN}"}
-    )
-    assert response.status_code == 403, f"{response.json()}"
+        auth = Auth0(domain=DOMAIN)
+        auth_no_error = Auth0(domain=DOMAIN, auto_error=False)
+        get_current_user = Auth0CurrentUser(domain=DOMAIN)
+        get_current_user_no_error = Auth0CurrentUser(domain=DOMAIN, auto_error=False)
 
-    response = client.get(
-        "/scope/no-error/", headers={"authorization": f"Bearer {DEFAULT_ACCESS_TOKEN}"}
-    )
-    assert response.status_code == 200, f"{response.json()}"
+        class Auth0InvalidClaims(Auth0Claims):
+            fake_field: str
 
+        class Auth0FakeCurrentUser(Auth0CurrentUser):
+            user_info = Auth0InvalidClaims
 
-def test_get_current_user():
-    response = client.get("/user/", headers={"authorization": f"Bearer {ID_TOKEN}"})
-    assert response.status_code == 200, f"{response.json()}"
-    for value in response.json().values():
-        assert value, f"{response.content} failed to parse"
+        get_invalid_userinfo = Auth0FakeCurrentUser(domain=DOMAIN)
+        get_invalid_userinfo_no_error = Auth0FakeCurrentUser(
+            domain=DOMAIN, auto_error=False
+        )
 
+        @app.get("/")
+        async def secure(payload=Depends(auth)) -> bool:
+            return payload
 
-def test_not_verified_user_no_error():
-    response = client.get(
-        "/user/no-error/", headers={"authorization": f"Bearer {ID_TOKEN}"[:-3] + "aaa"},
-    )
-    assert response.status_code == 200, f"{response.json()}"
+        @app.get("/no-error/", dependencies=[Depends(auth_no_error)])
+        async def secure_no_error(payload=Depends(auth_no_error)) -> bool:
+            return payload
 
+        @app.get("/scope/")
+        async def secure_scope(payload=Depends(auth.scope(self.scope))) -> bool:
+            pass
 
-def test_insufficient_current_user_info():
-    response = client.get("/user/", headers={"authorization": f"Bearer {ACCESS_TOKEN}"})
-    assert response.status_code == 403, f"{response.json()}"
+        @app.get("/scope/no-error/")
+        async def secure_scope_no_error(
+            payload=Depends(auth_no_error.scope(self.scope)),
+        ):
+            assert payload is None
 
+        @app.get("/user/", response_model=Auth0Claims)
+        async def secure_user(current_user: Auth0Claims = Depends(get_current_user)):
+            return current_user
 
-def test_insufficient_current_user_info_no_error():
-    response = client.get(
-        "/user/no-error/", headers={"authorization": f"Bearer {ACCESS_TOKEN}"}
-    )
-    assert response.status_code == 200, f"{response.json()}"
+        @app.get("/user/no-error/")
+        async def secure_user_no_error(
+            current_user: Optional[Auth0Claims] = Depends(get_current_user_no_error),
+        ):
+            assert current_user is None
+
+        @app.get("/user/invalid/", response_model=Auth0InvalidClaims)
+        async def invalid_userinfo(
+            current_user: Auth0InvalidClaims = Depends(get_invalid_userinfo),
+        ):
+            return current_user  # pragma: no cover
+
+        @app.get("/user/invalid/no-error/")
+        async def invalid_userinfo_no_error(
+            current_user: Optional[Auth0InvalidClaims] = Depends(
+                get_invalid_userinfo_no_error
+            ),
+        ):
+            assert current_user is None
+
+        self.TESTCLIENT = TestClient(app)
+
+    def teardown(self):
+        delete_user(self.auth0sdk, self.username)
+        delete_user(self.auth0sdk, self.scope_username)
+
+    def decode(self):
+        # access token
+        header, payload, *_ = decode_token(self.ACCESS_TOKEN)
+        assert header.get("typ") == "JWT"
+        assert not payload.get("permissions")
+
+        # scope access token
+        scope_header, scope_payload, *_ = decode_token(self.SCOPE_ACCESS_TOKEN)
+        assert scope_header.get("typ") == "JWT"
+        assert scope_payload.get("permissions")
+
+        # id token
+        id_header, id_payload, *_ = decode_token(self.ID_TOKEN)
+        assert id_header.get("typ") == "JWT"
+        assert id_payload.get("email") == self.username

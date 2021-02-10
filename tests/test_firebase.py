@@ -15,6 +15,8 @@ from firebase_admin import credentials
 from fastapi_cloudauth import FirebaseCurrentUser
 from fastapi_cloudauth.firebase import FirebaseClaims
 
+from tests.helpers import assert_get_response, decode_token, BaseTestCloudAuth
+
 API_KEY = os.getenv("FIREBASE_APIKEY")
 _verify_password_url = (
     "https://www.googleapis.com/identitytoolkit/v3/relyingparty/verifyPassword"
@@ -68,6 +70,15 @@ def get_test_client():
     get_current_user = FirebaseCurrentUser()
     get_current_user_no_error = FirebaseCurrentUser(auto_error=False)
 
+    class FirebaseInvalidClaims(FirebaseClaims):
+        fake_field: str
+
+    class FirebaseFakeCurrentUser(FirebaseCurrentUser):
+        user_info = FirebaseInvalidClaims
+
+    get_invalid_userinfo = FirebaseFakeCurrentUser()
+    get_invalid_userinfo_no_error = FirebaseFakeCurrentUser(auto_error=False)
+
     app = FastAPI()
 
     @app.get("/user/", response_model=FirebaseClaims)
@@ -80,116 +91,58 @@ def get_test_client():
     ):
         assert current_user is None
 
+        @app.get("/user/invalid/", response_model=FirebaseInvalidClaims)
+        async def invalid_userinfo(
+            current_user: FirebaseInvalidClaims = Depends(get_invalid_userinfo),
+        ):
+            return current_user  # pragma: no cover
+
+        @app.get("/user/invalid/no-error/")
+        async def invalid_userinfo_no_error(
+            current_user: Optional[FirebaseInvalidClaims] = Depends(
+                get_invalid_userinfo_no_error
+            ),
+        ):
+            assert current_user is None
+
     client = TestClient(app)
     return client
 
 
-class TestFirebase:
-    @classmethod
-    def setup_class(cls):
+class FirebaseClient(BaseTestCloudAuth):
+    def setup(self):
         """set credentials and create test user"""
-        cls.email = f"fastapi-cloudauth-user-py{info.major}{info.minor}@example.com"
-        cls.password = "secretPassword"
-        cls.uid = f"fastapi-cloudauth-test-uid-py{info.major}{info.minor}"
+        self.email = f"fastapi-cloudauth-user-py{info.major}{info.minor}@example.com"
+        self.password = "secretPassword"
+        self.uid = f"fastapi-cloudauth-test-uid-py{info.major}{info.minor}"
 
         initialize()
 
-        delete_test_user(cls.uid)
+        delete_test_user(self.uid)
 
         # create test user
-        add_test_user(cls.email, cls.password, cls.uid)
+        add_test_user(self.email, self.password, self.uid)
 
         # get access token and id token
-        cls.ACCESS_TOKEN, cls.ID_TOKEN = get_tokens(cls.email, cls.password, cls.uid)
+        self.ACCESS_TOKEN, self.ID_TOKEN = get_tokens(
+            self.email, self.password, self.uid
+        )
 
         # set application for testing
-        cls.client = get_test_client()
+        self.TESTCLIENT = get_test_client()
 
-    @classmethod
-    def teardown_class(cls):
+    def teardown(self):
         """delete test user"""
-        delete_test_user(cls.uid)
+        delete_test_user(self.uid)
 
-    def success_case(self, path: str, token: str = None):
-        headers = {}
-        if token:
-            headers["authorization"] = f"Bearer {token}"
-        response = self.client.get(path, headers=headers)
-        assert response.status_code == 200, f"{response.json()}"
-        return response
-
-    def user_success_case(self, path: str, token: str = None):
-        response = self.success_case(path, token)
-        for value in response.json().values():
-            assert value, f"{response.content} failed to parse"
-        return response
-
-    def failure_case(self, path: str, token: str = None):
-        headers = {}
-        if token:
-            headers["authorization"] = f"Bearer {token}"
-        response = self.client.get(path, headers=headers)
-        assert response.status_code == 403, f"{response.json()}"
-        return response
-
-    def test_no_raise_delete_test_user(self):
-        delete_test_user("1")
-
-    def test_decode_token(self):
+    def decode(self):
         # access token
-        header, payload, *rest = self.ACCESS_TOKEN.split(".")
-
-        header += f"{'=' * (len(header) % 4)}"
-        payload += f"{'=' * (len(payload) % 4)}"
-        header = json.loads(base64.b64decode(header).decode())
-        payload = json.loads(base64.b64decode(payload).decode())
+        header, payload, *_ = decode_token(self.ACCESS_TOKEN)
         assert header.get("typ") == "JWT"
         assert payload.get("uid") == self.uid
 
         # id token
-        id_header, id_payload, *rest = self.ID_TOKEN.split(".")
-
-        id_header += f"{'=' * (len(id_header) % 4)}"
-        id_payload += f"{'=' * (len(id_payload) % 4)}"
-        id_header = json.loads(base64.b64decode(id_header).decode())
-        id_payload = json.loads(base64.b64decode(id_payload).decode())
+        id_header, id_payload, *_ = decode_token(self.ID_TOKEN)
         assert id_header.get("typ") == "JWT"
         assert id_payload.get("email") == self.email
         assert id_payload.get("user_id") == self.uid
-
-    def test_valid_id_token(self):
-        response = self.user_success_case("/user/", self.ID_TOKEN)
-
-    def test_no_id_token(self):
-        # handle in fastapi.security.HTTPBearer
-        self.failure_case("/user/")
-
-    def test_incompatible_kid_id_token(self):
-        # manipulate header
-        token = self.ID_TOKEN.split(".", 1)[-1]
-        token = (
-            "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCIsImtpZCI6IjIzMDQ5ODE1MWMyMTRiNzg4ZGQ5N2YyMmI4NTQxMGE1In0."
-            + token
-        )
-        self.failure_case("/user/", token)
-
-        # not auto_error
-        self.success_case("/user/no-error/", token)
-
-    def test_no_kid_id_token(self):
-        # manipulate header
-        token = self.ID_TOKEN.split(".", 1)[-1]
-        token = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9." + token
-        self.failure_case("/user/", token)
-
-        # not auto_error
-        self.success_case("/user/no-error", token)
-
-    def test_not_verified_id_token(self):
-        # manipulate public_key
-        token = f"{self.ID_TOKEN}"[:-3] + "aaa"
-        self.failure_case("/user/", token)
-
-        # not auto_error
-        self.success_case("/user/no-error", token)
-
