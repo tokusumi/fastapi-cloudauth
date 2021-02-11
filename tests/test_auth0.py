@@ -12,13 +12,28 @@ from fastapi_cloudauth.auth0 import Auth0, Auth0Claims, Auth0CurrentUser
 
 from tests.helpers import BaseTestCloudAuth, decode_token
 
-DOMAIN = os.environ["AUTH0_DOMAIN"]
-MGMT_CLIENTID = os.environ["AUTH0_MGMT_CLIENTID"]
-MGMT_CLIENT_SECRET = os.environ["AUTH0_MGMT_CLIENT_SECRET"]
-CLIENTID = os.environ["AUTH0_CLIENTID"]
-CLIENT_SECRET = os.environ["AUTH0_CLIENT_SECRET"]
-AUDIENCE = os.environ["AUTH0_AUDIENCE"]
+DOMAIN = os.getenv("AUTH0_DOMAIN")
+MGMT_CLIENTID = os.getenv("AUTH0_MGMT_CLIENTID")
+MGMT_CLIENT_SECRET = os.getenv("AUTH0_MGMT_CLIENT_SECRET")
+CLIENTID = os.getenv("AUTH0_CLIENTID")
+CLIENT_SECRET = os.getenv("AUTH0_CLIENT_SECRET")
+AUDIENCE = os.getenv("AUTH0_AUDIENCE")
 CONNECTION = "Username-Password-Authentication"
+
+
+def assert_env():
+    assert DOMAIN, "'AUTH0_DOMAIN' is not defined. Set environment variables"
+    assert (
+        MGMT_CLIENTID
+    ), "'AUTH0_MGMT_CLIENTID' is not defined. Set environment variables"
+    assert (
+        MGMT_CLIENT_SECRET
+    ), "'AUTH0_MGMT_CLIENT_SECRET' is not defined. Set environment variables"
+    assert CLIENTID, "'AUTH0_CLIENTID' is not defined. Set environment variables"
+    assert (
+        CLIENT_SECRET
+    ), "'AUTH0_CLIENT_SECRET' is not defined. Set environment variables"
+    assert AUDIENCE, "'AUTH0_AUDIENCE' is not defined. Set environment variables"
 
 
 def init() -> Auth0sdk:
@@ -156,6 +171,8 @@ class Auth0Client(BaseTestCloudAuth):
     scope = "read:test"
 
     def setup(self):
+        assert_env()
+
         auth0sdk = init()
 
         self.scope_username = (

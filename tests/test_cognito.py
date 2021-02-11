@@ -1,6 +1,7 @@
 import os
 from sys import version_info as info
 import boto3
+from botocore.exceptions import ClientError
 from typing import Optional
 from fastapi import Depends, FastAPI
 from fastapi.testclient import TestClient
@@ -10,37 +11,60 @@ from fastapi_cloudauth.cognito import CognitoClaims
 
 from tests.helpers import BaseTestCloudAuth, decode_token
 
+REGION = os.getenv("COGNITO_REGION")
+USERPOOLID = os.getenv("COGNITO_USERPOOLID")
+CLIENTID = os.getenv("COGNITO_APP_CLIENT_ID")
+
+
+def assert_env():
+    assert REGION, "'COGNITO_REGION' is not defined. Set environment variables"
+    assert USERPOOLID, "'COGNITO_USERPOOLID' is not defined. Set environment variables"
+    assert CLIENTID, "'COGNITO_APP_CLIENT_ID' is not defined. Set environment variables"
+    assert CLIENTID, "'COGNITO_APP_CLIENT_ID' is not defined. Set environment variables"
+    assert os.getenv(
+        "AWS_ACCESS_KEY_ID"
+    ), "'AWS_ACCESS_KEY_ID' is not defined. Set environment variables"
+    assert os.getenv(
+        "AWS_SECRET_ACCESS_KEY"
+    ), "'AWS_SECRET_ACCESS_KEY' is not defined. Set environment variables"
+
+
+def initialize():
+    client = boto3.client("cognito-idp", region_name=REGION)
+    return client
+
 
 def add_test_user(
+    client,
     username=f"test_user{info.major}{info.minor}@example.com",
     password="testPass1-",
     scope: Optional[str] = None,
 ):
-    client = boto3.client("cognito-idp", region_name=os.environ["COGNITO_REGION"])
     resp = client.sign_up(
-        ClientId=os.environ["COGNITO_APP_CLIENT_ID"],
+        ClientId=CLIENTID,
         Username=username,
         Password=password,
         UserAttributes=[{"Name": "email", "Value": username},],
     )
-    resp = client.admin_confirm_sign_up(
-        UserPoolId=os.environ["COGNITO_USERPOOLID"], Username=username
-    )
+    resp = client.admin_confirm_sign_up(UserPoolId=USERPOOLID, Username=username)
     if scope:
+        try:
+            resp = client.create_group(GroupName=scope, UserPoolId=USERPOOLID)
+        except ClientError as e:  # pragma: no cover
+            pass  # pragma: no cover
         resp = client.admin_add_user_to_group(
-            UserPoolId=os.environ["COGNITO_USERPOOLID"],
-            Username=username,
-            GroupName=scope,
+            UserPoolId=USERPOOLID, Username=username, GroupName=scope,
         )
 
 
 def get_cognito_token(
-    username=f"test_user{info.major}{info.minor}@example.com", password="testPass1-"
+    client,
+    username=f"test_user{info.major}{info.minor}@example.com",
+    password="testPass1-",
 ):
-    client = boto3.client("cognito-idp", region_name=os.environ["COGNITO_REGION"])
     resp = client.admin_initiate_auth(
-        UserPoolId=os.environ["COGNITO_USERPOOLID"],
-        ClientId=os.environ["COGNITO_APP_CLIENT_ID"],
+        UserPoolId=USERPOOLID,
+        ClientId=CLIENTID,
         AuthFlow="ADMIN_USER_PASSWORD_AUTH",
         AuthParameters={"USERNAME": username, "PASSWORD": password},
     )
@@ -49,14 +73,13 @@ def get_cognito_token(
     return access_token, id_token
 
 
-def delete_cognito_user(username=f"test_user{info.major}{info.minor}@example.com"):
+def delete_cognito_user(
+    client, username=f"test_user{info.major}{info.minor}@example.com",
+):
     try:
-        client = boto3.client("cognito-idp", region_name=os.environ["COGNITO_REGION"])
-        response = client.admin_delete_user(
-            UserPoolId=os.environ["COGNITO_USERPOOLID"], Username=username
-        )
-    except:
-        pass
+        response = client.admin_delete_user(UserPoolId=USERPOOLID, Username=username)
+    except:  # pragma: no cover
+        pass  # pragma: no cover
 
 
 class CognitoClient(BaseTestCloudAuth):
@@ -66,10 +89,12 @@ class CognitoClient(BaseTestCloudAuth):
     scope = "read:test"
 
     def setup(self):
+        assert_env()
+
         app = FastAPI()
 
-        region = os.environ["COGNITO_REGION"]
-        userPoolId = os.environ["COGNITO_USERPOOLID"]
+        region = REGION
+        userPoolId = USERPOOLID
 
         auth = Cognito(region=region, userPoolId=userPoolId)
         auth_no_error = Cognito(region=region, userPoolId=userPoolId, auto_error=False)
@@ -91,14 +116,18 @@ class CognitoClient(BaseTestCloudAuth):
             region=region, userPoolId=userPoolId, auto_error=False
         )
 
-        delete_cognito_user(self.user)
-        add_test_user(self.user, self.password)
-        self.ACCESS_TOKEN, self.ID_TOKEN = get_cognito_token(self.user, self.password)
+        self.client = initialize()
 
-        delete_cognito_user(self.scope_user)
-        add_test_user(self.scope_user, self.password, scope=self.scope)
+        delete_cognito_user(self.client, self.user)
+        add_test_user(self.client, self.user, self.password)
+        self.ACCESS_TOKEN, self.ID_TOKEN = get_cognito_token(
+            self.client, self.user, self.password
+        )
+
+        delete_cognito_user(self.client, self.scope_user)
+        add_test_user(self.client, self.scope_user, self.password, scope=self.scope)
         self.SCOPE_ACCESS_TOKEN, self.SCOPE_ID_TOKEN = get_cognito_token(
-            self.scope_user, self.password
+            self.client, self.scope_user, self.password
         )
 
         @app.get("/")
@@ -146,8 +175,8 @@ class CognitoClient(BaseTestCloudAuth):
         self.TESTCLIENT = TestClient(app)
 
     def teardown(self):
-        delete_cognito_user(self.user)
-        delete_cognito_user(self.scope_user)
+        delete_cognito_user(self.client, self.user)
+        delete_cognito_user(self.client, self.scope_user)
 
     def decode(self):
         # access token
