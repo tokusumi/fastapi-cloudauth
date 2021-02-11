@@ -1,6 +1,7 @@
 import os
 import base64
 import json
+import tempfile
 from typing import Optional
 from sys import version_info as info
 
@@ -18,20 +19,27 @@ from fastapi_cloudauth.firebase import FirebaseClaims
 from tests.helpers import assert_get_response, decode_token, BaseTestCloudAuth
 
 API_KEY = os.getenv("FIREBASE_APIKEY")
+BASE64_CREDENTIAL = os.getenv("FIREBASE_BASE64_CREDENCIALS")
 _verify_password_url = (
     "https://www.googleapis.com/identitytoolkit/v3/relyingparty/verifyPassword"
 )
 
 
+def assert_env():
+    assert API_KEY, "'FIREBASE_APIKEY' is not defined. Set environment variables"
+    assert (
+        BASE64_CREDENTIAL
+    ), "'FIREBASE_BASE64_CREDENCIALS' is not defined. Set environment variables"
+
+
 def initialize():
     """set credentials (intermediate credential file is created)"""
-    credentials_base64 = os.getenv("FIREBASE_BASE64_CREDENCIALS")
+    credentials_base64 = BASE64_CREDENTIAL
     credentials_str = base64.b64decode(credentials_base64)
     credentials_json = json.loads(credentials_str)
-    basedir = os.path.dirname(os.path.dirname(__file__))
-    credentials_dirpath = os.path.join(basedir, "credentials")
-    os.makedirs(credentials_dirpath, exist_ok=True)
-    credentials_path = os.path.join(credentials_dirpath, "sa.json")
+
+    tmpdir = tempfile.TemporaryDirectory()
+    credentials_path = os.path.join(tmpdir.name, "sa.json")
     with open(credentials_path, "w",) as f:
         json.dump(credentials_json, f)
 
@@ -112,6 +120,8 @@ def get_test_client():
 class FirebaseClient(BaseTestCloudAuth):
     def setup(self):
         """set credentials and create test user"""
+        assert_env()
+
         self.email = f"fastapi-cloudauth-user-py{info.major}{info.minor}@example.com"
         self.password = "secretPassword"
         self.uid = f"fastapi-cloudauth-test-uid-py{info.major}{info.minor}"
