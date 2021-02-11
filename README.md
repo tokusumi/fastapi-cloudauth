@@ -196,3 +196,7 @@ class CustomAuth0Claims(Auth0Claims):
 get_current_user = Auth0CurrentUser(domain=DOMAIN)
 get_current_user.user_info = CustomAuth0Claims  # override user info model with a custom one.
 ```
+
+## Development - Contributing
+
+Please read the [CONTRIBUTING](../CONTRIBUTING.md) how to setup development environment and testing.

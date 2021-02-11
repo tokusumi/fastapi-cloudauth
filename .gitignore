@@ -11,3 +11,4 @@ poetry.lock
 .coverage
 scripts/load_env.sh
 credentials/*
+base64-credential
