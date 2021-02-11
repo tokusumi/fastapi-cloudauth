@@ -123,28 +123,28 @@ above values are used to:
 
 At first, you need to sign-up/log-in [Auth0](https://auth0.com/)
 
-Button user icon at the top of right side, and type "Username-Password-Authentication" into `Tenant Settings` > `General` > `API Authorization Settings` > `Default Directory` and save it.
+Button user icon at the top of right side, and type "Username-Password-Authentication" into `Tenant Settings`>`General`>`API Authorization Settings`>`Default Directory` and save it.
 
-Next, goes to `Default App` settings from Applications at side bar, click "Show Advanced Settings" and turn on `Grant Types` > `password` and saved changes. It shows "Domain", "Client ID" and "Client Secret" there.
+Next, goes to `Default App` settings from Applications at side bar, click "Show Advanced Settings" and turn on `Grant Types`>`password` and saved changes. It shows "Domain", "Client ID" and "Client Secret" there.
 
 Next, create new application from application page at side bar with:
 
 * Enter any name (noted as "Management APP" here)
 * Choose `Machine to Machine Applications` as application's type
-* Select "Auth0 Management API" as authorized API with "read:users", "update:users", "delete:users", "create:users" and ""  scopes
+* Select "Auth0 Management API" as authorized API with "read:users", "update:users", "delete:users", "create:users" scopes
 
 Created application settings page shows "Client ID" and "Client Secret", they are used as "Management Client ID" and "Management Client Secret".
 
 At last, goes to APIs at side bar to create new API with:
 
-* Enter any name (noted as "Dummy API" here)
-* Type any identifier, URL is recommended (noted as "https://dummy-api/" here)
+* Enter any name (ex: "Dummy API")
+* Type any identifier, URL is recommended (ex: "https://dummy-api/")
 
 After successfully created, it shows "Identifier" at the just bottom of API name (same as identifier you typed).
 
 And changes/add as follows:
 
-* In `Settings` > `RBAC Settings`, turn on `Enable RBAC` and `Add Permissions in the Access Token` and save it.
+* In `Settings`>`RBAC Settings`, turn on `Enable RBAC` and `Add Permissions in the Access Token` and save it.
 * In `Permissions`, add new scope "read:test" (add something in descrition).
 
 #### Testing for Auth0
