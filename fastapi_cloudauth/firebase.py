@@ -1,5 +1,7 @@
+from typing import Any, Type
 from pydantic import BaseModel, Field
-from .base import TokenUserInfoGetter, JWKS
+from .base import UserInfoAuth
+from .verification import JWKS
 
 
 class FirebaseClaims(BaseModel):
@@ -7,14 +9,14 @@ class FirebaseClaims(BaseModel):
     email: str = Field(None, alias="email")
 
 
-class FirebaseCurrentUser(TokenUserInfoGetter):
+class FirebaseCurrentUser(UserInfoAuth):
     """
     Verify ID token and get user info of Firebase
     """
 
     user_info = FirebaseClaims
 
-    def __init__(self, *args, **kwargs):
+    def __init__(self, *args: Any, **kwargs: Any):
         url = "https://www.googleapis.com/robot/v1/metadata/x509/securetoken@system.gserviceaccount.com"
         jwks = JWKS.firebase(url)
-        super().__init__(jwks, *args, **kwargs)
+        super().__init__(jwks, *args, user_info=self.user_info, **kwargs)
