@@ -150,7 +150,10 @@ class TokenVerifier(BaseTokenVerifier):
         return True
 
     async def __call__(
-        self, http_auth: HTTPAuthorizationCredentials = Depends(HTTPBearer())
+        self,
+        http_auth: Optional[HTTPAuthorizationCredentials] = Depends(
+            HTTPBearer(auto_error=False)
+        ),
     ) -> Optional[bool]:
         """User access-token verification Shortcut to pass it into dependencies.
         Use as (`auth` is this instanse and `app` is fastapi.FastAPI instanse):
@@ -162,6 +165,14 @@ class TokenVerifier(BaseTokenVerifier):
             return "hello"
         ```
         """
+        if http_auth is None:
+            if self.auto_error:
+                raise HTTPException(
+                    status_code=status.HTTP_403_FORBIDDEN, detail=NOT_AUTHENTICATED
+                )
+            else:
+                return None
+
         is_verified = self.verify_token(http_auth)
         if not is_verified:
             return None
@@ -179,7 +190,7 @@ class TokenUserInfoGetter(BaseTokenVerifier):
     Verify `ID token` and extract user information
     """
 
-    user_info: Type[BaseModel] = None
+    user_info: Optional[Type[BaseModel]] = None
 
     def __init__(self, *args, **kwargs):
         if not self.user_info:
@@ -189,8 +200,11 @@ class TokenUserInfoGetter(BaseTokenVerifier):
         super().__init__(*args, **kwargs)
 
     async def __call__(
-        self, http_auth: HTTPAuthorizationCredentials = Depends(HTTPBearer())
-    ) -> Optional[Type[BaseModel]]:
+        self,
+        http_auth: Optional[HTTPAuthorizationCredentials] = Depends(
+            HTTPBearer(auto_error=False)
+        ),
+    ) -> Optional[BaseModel]:
         """Get current user and verification with ID-token Shortcut.
         Use as (`Auth` is this subclass, `auth` is `Auth` instanse and `app` is fastapi.FastAPI instanse):
         ```
@@ -201,6 +215,14 @@ class TokenUserInfoGetter(BaseTokenVerifier):
             return current_user
         ```
         """
+        if http_auth is None:
+            if self.auto_error:
+                raise HTTPException(
+                    status_code=status.HTTP_403_FORBIDDEN, detail=NOT_AUTHENTICATED
+                )
+            else:
+                return None
+
         is_verified = self.verify_token(http_auth)
         if not is_verified:
             return None
