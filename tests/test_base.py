@@ -73,7 +73,14 @@ def test_validation_scope(mocker, scopes):
     )
 
 
-# @pytest.mark.unittest
-# def test_forget_def_user_info():
-#     with pytest.raises(AttributeError):
-#         UserInfoAuth()
+@pytest.mark.unittest
+@pytest.mark.asyncio
+async def test_forget_def_user_info():
+    get_current_user = UserInfoAuth(jwks=JWKS(keys=[]))
+
+    get_current_user.user_info = None
+    dummy_http_auth = HTTPAuthorizationCredentials(
+        scheme="a", credentials="aaaaaaaaaaaaaaaa"
+    )
+    res = await get_current_user.call(dummy_http_auth)
+    assert res is None

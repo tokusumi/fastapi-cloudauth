@@ -30,23 +30,25 @@ class CloudAuth(ABC):
     @abstractmethod
     def verifier(self) -> Verifier:
         """Composite Verifier class to verify jwt in HTTPAuthorizationCredentials"""
-        ...
+        ...  # pragma: no cover
 
     @verifier.setter
     def verifier(self, instance: Verifier) -> None:
-        ...
+        ...  # pragma: no cover
 
     @abstractmethod
     async def call(self, http_auth: HTTPAuthorizationCredentials) -> Any:
         """Define postprocess for verified token"""
-        ...
+        ...  # pragma: no cover
 
     def clone(self, instance: T) -> T:
         """create clone instanse"""
         # In some case, Verifier can't pickle (deepcopy).
         # Tempolary put it aside to deepcopy. Then, undo it at the last line.
         if not isinstance(instance, CloudAuth):
-            raise TypeError("Only subclass of CloudAuth can be cloned")
+            raise TypeError(
+                "Only subclass of CloudAuth can be cloned"
+            )  # pragma: no cover
 
         _verifier = instance.verifier
         instance.verifier = None  # type: ignore
@@ -109,10 +111,6 @@ class UserInfoAuth(CloudAuth):
     @property
     def verifier(self) -> JWKsVerifier:
         return self._verifier
-
-    @verifier.setter
-    def verifier(self, verifier: JWKsVerifier) -> None:
-        self._verifier = verifier
 
     async def call(
         self, http_auth: HTTPAuthorizationCredentials

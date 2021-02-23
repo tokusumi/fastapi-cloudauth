@@ -43,6 +43,7 @@ authlib = "^0.15.2"
 firebase-admin = "^4.4.0"
 auth0-python = "^3.14.0"
 pytest-mock = "^3.5.1"
+pytest-asyncio = "^0.14.0"
 
 
 [build-system]

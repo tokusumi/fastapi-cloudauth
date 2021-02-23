@@ -24,21 +24,16 @@ class Verifier(ABC):
     @property
     @abstractmethod
     def auto_error(self) -> bool:
-        ...
+        ...  # pragma: no cover
 
     @abstractmethod
     def verify_token(self, http_auth: HTTPAuthorizationCredentials) -> bool:
-        ...
+        ...  # pragma: no cover
 
+    @abstractmethod
     def clone(self, instance: T) -> T:
         """create clone instanse"""
-        # In some case, Verifier can't pickle (deepcopy).
-        # Tempolary put it aside to deepcopy. Then, undo it at the last line.
-        if not isinstance(instance, Verifier):
-            raise TypeError("Only subclass of Verifier can be cloned")
-
-        clone = deepcopy(instance)
-        return clone
+        ...  # pragma: no cover
 
 
 class JWKS:
