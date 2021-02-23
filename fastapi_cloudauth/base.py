@@ -73,6 +73,13 @@ class BaseTokenVerifier:
         return clone
 
     def get_publickey(self, http_auth: HTTPAuthorizationCredentials):
+        if not hasattr(http_auth, "credentials"):
+            if self.auto_error:
+                raise HTTPException(
+                    status_code=status.HTTP_403_FORBIDDEN, detail=NOT_AUTHENTICATED
+                )
+            else:
+                return None
         token = http_auth.credentials
         header = jwt.get_unverified_header(token)
         kid = header.get("kid")
@@ -150,7 +157,7 @@ class TokenVerifier(BaseTokenVerifier):
         return True
 
     async def __call__(
-        self, http_auth: HTTPAuthorizationCredentials = Depends(HTTPBearer())
+        self, http_auth: HTTPAuthorizationCredentials = Depends(HTTPBearer(auto_error=False))
     ) -> Optional[bool]:
         """User access-token verification Shortcut to pass it into dependencies.
         Use as (`auth` is this instanse and `app` is fastapi.FastAPI instanse):
@@ -189,7 +196,7 @@ class TokenUserInfoGetter(BaseTokenVerifier):
         super().__init__(*args, **kwargs)
 
     async def __call__(
-        self, http_auth: HTTPAuthorizationCredentials = Depends(HTTPBearer())
+        self, http_auth: HTTPAuthorizationCredentials = Depends(HTTPBearer(auto_error=False))
     ) -> Optional[Type[BaseModel]]:
         """Get current user and verification with ID-token Shortcut.
         Use as (`Auth` is this subclass, `auth` is `Auth` instanse and `app` is fastapi.FastAPI instanse):

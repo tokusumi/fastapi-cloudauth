@@ -62,6 +62,7 @@ class AccessTokenTestCase(BaseTestCloudAuth):
     def test_no_token(self):
         # handle in fastapi.security.HTTPBearer
         self.failure_case("/")
+        self.success_case("no-error")
 
     def test_incompatible_kid_token(self):
         # manipulate header
