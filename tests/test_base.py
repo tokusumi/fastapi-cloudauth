@@ -127,3 +127,27 @@ async def test_assign_user_info(auth):
 
     user.user_info = NameSchema
     assert await user.call(dummy_http_auth) == NameSchema(name="name")
+
+
+@pytest.mark.unittest
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "auth", [UserInfoAuth, ScopedAuth],
+)
+async def test_extract_raw_user_info(auth):
+    dummy_http_auth = HTTPAuthorizationCredentials(
+        scheme="a",
+        credentials="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxMjM0NTY3ODkwIiwibmFtZSI6Im5hbWUiLCJpYXQiOjE1MTYyMzkwMjJ9.3ZEDmhWNZWDbJDPDlZX_I3oaalNYXdoT-bKLxIxQK4U",
+    )
+
+    class NameSchema(BaseModel):
+        name: str
+
+    get_current_user = auth(jwks=JWKS(keys=[]), user_info=NameSchema)
+    get_current_user.user_info = None
+    res = await get_current_user.call(dummy_http_auth)
+    assert res == {"sub": "1234567890", "name": "name", "iat": 1516239022}
+
+    get_current_user = auth(jwks=JWKS(keys=[]), user_info=NameSchema)
+    res = await get_current_user.claim(None).call(dummy_http_auth)
+    assert res == {"sub": "1234567890", "name": "name", "iat": 1516239022}
