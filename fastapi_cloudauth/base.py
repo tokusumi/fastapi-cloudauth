@@ -1,28 +1,21 @@
-from typing import Generic, List, Dict, Optional, Any, Type, TypeVar, Union
-from copy import deepcopy
 from abc import ABC, abstractmethod
-from jose import jwt  # type: ignore
+from copy import deepcopy
+from typing import Any, Dict, Optional, Type, Union
+
 from fastapi import Depends, HTTPException
-from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
+from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
+from jose import jwt  # type: ignore
 from pydantic import BaseModel
 from pydantic.error_wrappers import ValidationError
 from starlette import status
 
+from fastapi_cloudauth.messages import NOT_AUTHENTICATED, NOT_VALIDATED_CLAIMS
 from fastapi_cloudauth.verification import (
-    Verifier,
-    ScopedJWKsVerifier,
-    JWKsVerifier,
     JWKS,
+    JWKsVerifier,
+    ScopedJWKsVerifier,
+    Verifier,
 )
-from fastapi_cloudauth.messages import (
-    NOT_AUTHENTICATED,
-    NO_PUBLICKEY,
-    NOT_VERIFIED,
-    SCOPE_NOT_MATCHED,
-    NOT_VALIDATED_CLAIMS,
-)
-
-T = TypeVar("T")
 
 
 class CloudAuth(ABC):
@@ -41,7 +34,7 @@ class CloudAuth(ABC):
         """Define postprocess for verified token"""
         ...  # pragma: no cover
 
-    def clone(self, instance: T) -> T:
+    def clone(self, instance: "CloudAuth") -> "CloudAuth":
         """create clone instanse"""
         # In some case, Verifier can't pickle (deepcopy).
         # Tempolary put it aside to deepcopy. Then, undo it at the last line.
@@ -117,7 +110,10 @@ class UserInfoAuth(CloudAuth):
         self._verifier = verifier
 
     def _clone(self) -> "UserInfoAuth":
-        return super().clone(self)
+        cloned = super().clone(self)
+        if isinstance(cloned, UserInfoAuth):
+            return cloned
+        raise NotImplementedError  # pragma: no cover
 
     def claim(self, schema: Optional[Type[BaseModel]] = None) -> "UserInfoAuth":
         """User verification and validation shortcut to pass it into app arguments.
@@ -224,7 +220,10 @@ class ScopedAuth(CloudAuth):
         self._verifier.scope_name = name
 
     def _clone(self) -> "ScopedAuth":
-        return super().clone(self)
+        cloned = super().clone(self)
+        if isinstance(cloned, ScopedAuth):
+            return cloned
+        raise NotImplementedError  # pragma: no cover
 
     def scope(self, scope_name: str) -> "ScopedAuth":
         """User-SCOPE verification Shortcut to pass it into dependencies.

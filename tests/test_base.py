@@ -2,7 +2,8 @@ import pytest
 from fastapi import HTTPException
 from fastapi.security import HTTPAuthorizationCredentials
 from pydantic import BaseModel
-from fastapi_cloudauth.base import UserInfoAuth, ScopedAuth
+
+from fastapi_cloudauth.base import ScopedAuth, UserInfoAuth
 from fastapi_cloudauth.verification import JWKS
 
 

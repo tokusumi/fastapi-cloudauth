@@ -6,4 +6,4 @@ set -x
 mypy fastapi_cloudauth
 flake8 fastapi_cloudauth tests
 black fastapi_cloudauth tests --check
-isort fastapi_cloudauth tests docs_src scripts --check-only
+isort fastapi_cloudauth tests scripts --check-only

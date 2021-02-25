@@ -1,22 +1,21 @@
-from typing import List, Dict, Optional, Any, Type, T
-import requests
-from copy import deepcopy
 from abc import ABC, abstractmethod
-from jose import jwk, jwt  # type: ignore
-from jose.utils import base64url_decode  # type: ignore
+from copy import deepcopy
+from typing import Any, Dict, Optional
+
+import requests
+from fastapi import HTTPException
+from fastapi.security import HTTPAuthorizationCredentials
+from jose import jwk  # type: ignore
+from jose import jwt
 from jose.backends.base import Key  # type: ignore
-from fastapi import Depends, HTTPException
-from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
-from pydantic import BaseModel
-from pydantic.error_wrappers import ValidationError
+from jose.utils import base64url_decode  # type: ignore
 from starlette import status
 
 from fastapi_cloudauth.messages import (
-    NOT_AUTHENTICATED,
     NO_PUBLICKEY,
+    NOT_AUTHENTICATED,
     NOT_VERIFIED,
     SCOPE_NOT_MATCHED,
-    NOT_VALIDATED_CLAIMS,
 )
 
 
@@ -31,7 +30,7 @@ class Verifier(ABC):
         ...  # pragma: no cover
 
     @abstractmethod
-    def clone(self, instance: T) -> T:
+    def clone(self, instance: "Verifier") -> "Verifier":
         """create clone instanse"""
         ...  # pragma: no cover
 
@@ -123,7 +122,7 @@ class JWKsVerifier(Verifier):
 
         return is_verified
 
-    def clone(self, instance: "JWKsVerifier") -> "JWKsVerifier":
+    def clone(self, instance: "JWKsVerifier") -> "JWKsVerifier":  # type: ignore[override]
         _jwks_to_key = instance._jwks_to_key
         instance._jwks_to_key = {}
         clone = deepcopy(instance)
@@ -148,6 +147,12 @@ class ScopedJWKsVerifier(JWKsVerifier):
         super().__init__(jwks, auto_error=auto_error)
         self.scope_name = scope_name
         self.scope_key = scope_key
+
+    def clone(self, instance: "ScopedJWKsVerifier") -> "ScopedJWKsVerifier":  # type: ignore[override]
+        cloned = super().clone(instance)
+        if isinstance(cloned, ScopedJWKsVerifier):
+            return cloned
+        raise NotImplementedError  # pragma: no cover
 
     def _verify_scope(self, http_auth: HTTPAuthorizationCredentials) -> bool:
         claims = jwt.get_unverified_claims(http_auth.credentials)

@@ -1,22 +1,19 @@
-import os
 import base64
 import json
+import os
 import tempfile
-from typing import Optional
 from sys import version_info as info
+from typing import Optional
 
+import firebase_admin
+import requests
 from fastapi import Depends, FastAPI
 from fastapi.testclient import TestClient
-from firebase_admin.auth import delete_user
-import requests
-import firebase_admin
-from firebase_admin import auth
-from firebase_admin import credentials
+from firebase_admin import auth, credentials
 
 from fastapi_cloudauth import FirebaseCurrentUser
 from fastapi_cloudauth.firebase import FirebaseClaims
-
-from tests.helpers import assert_get_response, decode_token, BaseTestCloudAuth
+from tests.helpers import BaseTestCloudAuth, decode_token
 
 API_KEY = os.getenv("FIREBASE_APIKEY")
 BASE64_CREDENTIAL = os.getenv("FIREBASE_BASE64_CREDENCIALS")

@@ -1,14 +1,8 @@
-from typing import List
-
 import pytest
 
-from fastapi_cloudauth.base import (
-    NOT_AUTHENTICATED,
-    NO_PUBLICKEY,
-    NOT_VERIFIED,
-    SCOPE_NOT_MATCHED,
-    NOT_VALIDATED_CLAIMS,
-)
+from fastapi_cloudauth.messages import (NO_PUBLICKEY, NOT_AUTHENTICATED,
+                                        NOT_VALIDATED_CLAIMS, NOT_VERIFIED,
+                                        SCOPE_NOT_MATCHED)
 from tests.helpers import assert_get_response
 from tests.test_auth0 import Auth0Client
 from tests.test_cognito import CognitoClient

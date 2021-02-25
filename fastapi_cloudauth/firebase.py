@@ -1,5 +1,7 @@
-from typing import Any, Type
+from typing import Any
+
 from pydantic import BaseModel, Field
+
 from .base import UserInfoAuth
 from .verification import JWKS
 
