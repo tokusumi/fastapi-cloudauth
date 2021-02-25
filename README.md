@@ -9,8 +9,8 @@ fastapi-cloudauth standardizes and simplifies the integration between FastAPI an
 ## Features
 
 * [X] Verify access/id token
-* [X] Authenticate permission based on scope (or groups) within access token 
-* [X] Get login user info (name, email, etc.) within ID token
+* [X] Authenticate permission based on scope (or groups) within access token and Extract user info 
+* [X] Get the detail of login user info (name, email, etc.) within ID token
 * [X] Dependency injection for verification/getting user, powered by [FastAPI](https://github.com/tiangolo/fastapi)
 * [X] Support for:
     * [X] [AWS Cognito](https://aws.amazon.com/jp/cognito/)
@@ -35,7 +35,7 @@ $ pip install fastapi-cloudauth
 * Create a user assigned `read:users` permission in AWS Cognito 
 * Get Access/ID token for the created user
 
-NOTE: access token is valid for verification and scope-based authentication. ID token is valid for verification and getting user info from claims.
+NOTE: access token is valid for verification, scope-based authentication and getting user info (optional). ID token is valid for verification and getting full user info from claims.
 
 ### Create it
 
@@ -43,6 +43,7 @@ Create a file main.py with:
 
 ```python3
 import os
+from pydantic import BaseModel
 from fastapi import FastAPI, Depends
 from fastapi_cloudauth.cognito import Cognito, CognitoCurrentUser, CognitoClaims
 
@@ -56,6 +57,16 @@ def secure():
     return "Hello"
 
 
+class AccessUser(BaseModel):
+    sub: str
+
+
+@app.get("/access/")
+def secure_access(current_user: AccessUser = Depends(auth.claim(AccessUser))):
+    # access token is valid and getting user info from access token
+    return f"Hello", {current_user.sub}
+
+
 get_current_user = CognitoCurrentUser(
     region=os.environ["REGION"], userPoolId=os.environ["USERPOOLID"]
 )
@@ -63,7 +74,7 @@ get_current_user = CognitoCurrentUser(
 
 @app.get("/user/")
 def secure_user(current_user: CognitoClaims = Depends(get_current_user)):
-    # ID token is valid
+    # ID token is valid and getting user info from ID token
     return f"Hello, {current_user.username}"
 ```
 
@@ -105,6 +116,7 @@ Create a file main.py with:
 
 ```python3
 import os
+from pydantic import BaseModel
 from fastapi import FastAPI, Depends
 from fastapi_cloudauth.auth0 import Auth0, Auth0CurrentUser, Auth0Claims
 
@@ -119,12 +131,22 @@ def secure():
     return "Hello"
 
 
+class AccessUser(BaseModel):
+    sub: str
+
+
+@app.get("/access/")
+def secure_access(current_user: AccessUser = Depends(auth.claim(AccessUser))):
+    # access token is valid and getting user info from access token
+    return f"Hello", {current_user.sub}
+
+
 get_current_user = Auth0CurrentUser(domain=os.environ["DOMAIN"])
 
 
 @app.get("/user/")
 def secure_user(current_user: Auth0Claims = Depends(get_current_user)):
-    # ID token is valid
+    # ID token is valid and getting user info from ID token
     return f"Hello, {current_user.username}"
 ```
 
@@ -153,15 +175,18 @@ get_current_user = FirebaseCurrentUser()
 
 @app.get("/user/")
 def secure_user(current_user: FirebaseClaims = Depends(get_current_user)):
-    # ID token is valid
+    # ID token is valid and getting user info from ID token
     return f"Hello, {current_user.user_id}"
 ```
 
 Try to run the server and see interactive UI in the same way.
 
-## Custom claims
+## Additional User Information
 
-We can get values for the current user by writing a few lines.
+We can get values for the current user from access/ID token by writing a few lines.
+
+### Custom Claims
+
 For Auth0, the ID token contains extra values as follows (Ref at [Auth0 official doc](https://auth0.com/docs/tokens)):
 
 ```json
@@ -183,7 +208,7 @@ For Auth0, the ID token contains extra values as follows (Ref at [Auth0 official
 
 By default, `Auth0CurrentUser` gives `pydantic.BaseModel` object, which has `username` (name) and `email` fields.
 
-Here is sample code for extracting extra user information (adding `user_id`):
+Here is sample code for extracting extra user information (adding `user_id`) from ID token:
 
 ```python3
 from pydantic import Field
@@ -195,6 +220,31 @@ class CustomAuth0Claims(Auth0Claims):
 
 get_current_user = Auth0CurrentUser(domain=DOMAIN)
 get_current_user.user_info = CustomAuth0Claims  # override user info model with a custom one.
+```
+
+Or, we can also set new custom claims as follows:
+
+```python3
+get_user_detail = get_current_user.claim(CustomAuth0Claims)
+
+@app.get("/new/")
+async def detail(user: CustomAuth0Claims = Depends(get_user_detail)):
+    return f"Hello, {user.user_id}"
+```
+
+### Raw payload
+
+If you doesn't require `pydantic` data serialization (validation), `FastAPI-CloudAuth` has a option to extract raw payload.
+
+All you need is:
+
+```python3
+get_raw_info = get_current_user.claim(None)
+
+@app.get("/new/")
+async def raw_detail(user = Depends(get_raw_info)):
+    # user has all items (ex. iss, sub, aud, exp, ... it depends on passed token) 
+    return f"Hello, {user.get('sub')}"
 ```
 
 ## Development - Contributing
