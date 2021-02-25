@@ -1,161 +1,62 @@
-from typing import List, Dict, Optional, Any, Type
-import requests
+from abc import ABC, abstractmethod
 from copy import deepcopy
-from jose import jwk, jwt
-from jose.utils import base64url_decode
-from jose.backends.base import Key
+from typing import Any, Dict, Optional, Type, Union
+
 from fastapi import Depends, HTTPException
-from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
+from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
+from jose import jwt  # type: ignore
 from pydantic import BaseModel
 from pydantic.error_wrappers import ValidationError
 from starlette import status
 
-NOT_AUTHENTICATED = "Not authenticated"
-NO_PUBLICKEY = "JWK public Attribute for authorization token not found"
-NOT_VERIFIED = "Not verified"
-SCOPE_NOT_MATCHED = "Scope not matched"
-NOT_VALIDATED_CLAIMS = "Validation Error for Claims"
+from fastapi_cloudauth.messages import NOT_AUTHENTICATED, NOT_VALIDATED_CLAIMS
+from fastapi_cloudauth.verification import (
+    JWKS,
+    JWKsVerifier,
+    ScopedJWKsVerifier,
+    Verifier,
+)
 
 
-class JWKS:
-    # keys: List[Dict[str, Any]]
-    keys: Dict[str, Key]
+class CloudAuth(ABC):
+    @property
+    @abstractmethod
+    def verifier(self) -> Verifier:
+        """Composite Verifier class to verify jwt in HTTPAuthorizationCredentials"""
+        ...  # pragma: no cover
 
-    def __init__(self, keys: Dict[str, Key]):
-        self.keys = keys
+    @verifier.setter
+    def verifier(self, instance: Verifier) -> None:
+        ...  # pragma: no cover
 
-    @classmethod
-    def fromurl(cls, url: str):
-        """
-        get and parse json into jwks from endpoint as follows,
-        https://xxx/.well-known/jwks.json
-        """
-        # return cls.parse_obj(requests.get(url).json())
-        jwks = requests.get(url).json()
+    @abstractmethod
+    async def call(self, http_auth: HTTPAuthorizationCredentials) -> Any:
+        """Define postprocess for verified token"""
+        ...  # pragma: no cover
 
-        jwks = {_jwk["kid"]: jwk.construct(_jwk) for _jwk in jwks.get("keys", [])}
-        return cls(keys=jwks)
-
-    @classmethod
-    def firebase(cls, url: str):
-        """
-        get and parse json into jwks from endpoint for Firebase,
-        """
-        certs = requests.get(url).json()
-        keys = {
-            kid: jwk.construct(publickey, algorithm="RS256")
-            for kid, publickey in certs.items()
-        }
-        return cls(keys=keys)
-
-
-class BaseTokenVerifier:
-    def __init__(self, jwks: JWKS, auto_error: bool = True, *args, **kwargs):
-        """
-        auto-error: if False, return payload as b'null' for invalid token.
-        """
-        self.jwks_to_key = jwks.keys
-
-        self.scope_name: Optional[str] = None
-        self.auto_error = auto_error
-
-    def clone(self):
+    def clone(self, instance: "CloudAuth") -> "CloudAuth":
         """create clone instanse"""
-        # In some case, self.jwks_to_key can't pickle (deepcopy).
+        # In some case, Verifier can't pickle (deepcopy).
         # Tempolary put it aside to deepcopy. Then, undo it at the last line.
-        jwks_to_key = self.jwks_to_key
-        self.jwks_to_key = {}
-        clone = deepcopy(self)
-        clone.jwks_to_key = jwks_to_key
+        if not isinstance(instance, CloudAuth):
+            raise TypeError(
+                "Only subclass of CloudAuth can be cloned"
+            )  # pragma: no cover
 
-        # undo original instanse
-        self.jwks_to_key = jwks_to_key
+        _verifier = instance.verifier
+        instance.verifier = None  # type: ignore
+        clone = deepcopy(instance)
+        clone.verifier = _verifier.clone(_verifier)
+        instance.verifier = _verifier
         return clone
-
-    def get_publickey(self, http_auth: HTTPAuthorizationCredentials):
-        token = http_auth.credentials
-        header = jwt.get_unverified_header(token)
-        kid = header.get("kid")
-        if not kid:
-            if self.auto_error:
-                raise HTTPException(
-                    status_code=status.HTTP_403_FORBIDDEN, detail=NOT_AUTHENTICATED
-                )
-            else:
-                return None
-        publickey = self.jwks_to_key.get(kid)
-        if not publickey:
-            if self.auto_error:
-                raise HTTPException(
-                    status_code=status.HTTP_403_FORBIDDEN, detail=NO_PUBLICKEY,
-                )
-            else:
-                return None
-        return publickey
-
-    def verify_token(self, http_auth: HTTPAuthorizationCredentials) -> bool:
-        public_key = self.get_publickey(http_auth)
-        if not public_key:
-            # error handling is included in self.get_publickey
-            return False
-
-        message, encoded_sig = http_auth.credentials.rsplit(".", 1)
-        decoded_sig = base64url_decode(encoded_sig.encode())
-        is_verified = public_key.verify(message.encode(), decoded_sig)
-
-        if not is_verified:
-            if self.auto_error:
-                raise HTTPException(
-                    status_code=status.HTTP_403_FORBIDDEN, detail=NOT_VERIFIED
-                )
-
-        return is_verified
-
-
-class TokenVerifier(BaseTokenVerifier):
-    """
-    Verify `Access token` and authorize it based on scope (or groups)
-    """
-
-    scope_key: Optional[str] = None
-
-    def scope(self, scope_name: str):
-        """User-SCOPE verification Shortcut to pass it into dependencies.
-        Use as (`auth` is this instanse and `app` is fastapi.FastAPI instanse):
-        ```
-        from fastapi import Depends
-
-        @app.get("/", dependencies=[Depends(auth.scope("allowed scope"))])
-        def api():
-            return "hello"
-        ```
-        """
-        clone = self.clone()
-        clone.scope_name = scope_name
-        if not clone.scope_key:
-            raise AttributeError("declaire scope_key to set scope")
-        return clone
-
-    def verify_scope(self, http_auth: HTTPAuthorizationCredentials) -> bool:
-        claims = jwt.get_unverified_claims(http_auth.credentials)
-        scopes = claims.get(self.scope_key)
-        if isinstance(scopes, str):
-            scopes = {scope.strip() for scope in scopes.split()}
-        if scopes is None or self.scope_name not in scopes:
-            if self.auto_error:
-                raise HTTPException(
-                    status_code=status.HTTP_403_FORBIDDEN, detail=SCOPE_NOT_MATCHED,
-                )
-            return False
-        return True
 
     async def __call__(
         self,
         http_auth: Optional[HTTPAuthorizationCredentials] = Depends(
             HTTPBearer(auto_error=False)
         ),
-    ) -> Optional[bool]:
-        """User access-token verification Shortcut to pass it into dependencies.
+    ) -> Any:
+        """User access/ID-token verification Shortcut to pass it into dependencies.
         Use as (`auth` is this instanse and `app` is fastapi.FastAPI instanse):
         ```
         from fastapi import Depends
@@ -166,45 +67,76 @@ class TokenVerifier(BaseTokenVerifier):
         ```
         """
         if http_auth is None:
-            if self.auto_error:
+            if self.verifier.auto_error:
                 raise HTTPException(
                     status_code=status.HTTP_403_FORBIDDEN, detail=NOT_AUTHENTICATED
                 )
             else:
                 return None
 
-        is_verified = self.verify_token(http_auth)
+        is_verified = self.verifier.verify_token(http_auth)
         if not is_verified:
             return None
 
-        if self.scope_name:
-            is_verified_scope = self.verify_scope(http_auth)
-            if not is_verified_scope:
-                return None
-
-        return True
+        return await self.call(http_auth)
 
 
-class TokenUserInfoGetter(BaseTokenVerifier):
+class UserInfoAuth(CloudAuth):
     """
     Verify `ID token` and extract user information
     """
 
     user_info: Optional[Type[BaseModel]] = None
 
-    def __init__(self, *args, **kwargs):
-        if not self.user_info:
-            raise AttributeError(
-                "must assign custom pydantic.BaseModel into class attributes `user_info`"
-            )
-        super().__init__(*args, **kwargs)
-
-    async def __call__(
+    def __init__(
         self,
-        http_auth: Optional[HTTPAuthorizationCredentials] = Depends(
-            HTTPBearer(auto_error=False)
-        ),
-    ) -> Optional[BaseModel]:
+        jwks: JWKS,
+        *,
+        user_info: Optional[Type[BaseModel]] = None,
+        auto_error: bool = True,
+        **kwargs: Any
+    ) -> None:
+
+        self.user_info = user_info
+        self.auto_error = auto_error
+        self._verifier = JWKsVerifier(jwks, auto_error=self.auto_error)
+
+    @property
+    def verifier(self) -> JWKsVerifier:
+        return self._verifier
+
+    @verifier.setter
+    def verifier(self, verifier: JWKsVerifier) -> None:
+        self._verifier = verifier
+
+    def _clone(self) -> "UserInfoAuth":
+        cloned = super().clone(self)
+        if isinstance(cloned, UserInfoAuth):
+            return cloned
+        raise NotImplementedError  # pragma: no cover
+
+    def claim(self, schema: Optional[Type[BaseModel]] = None) -> "UserInfoAuth":
+        """User verification and validation shortcut to pass it into app arguments.
+        Use as (`auth` is this instanse and `app` is fastapi.FastAPI instanse):
+        ```
+        from fastapi import Depends
+        from pydantic import BaseModel
+
+        class CustomClaim(BaseModel):
+            sub: str
+
+        @app.get("/")
+        def api(user: CustomClaim = Depends(auth.claim(CustomClaim))):
+            return CustomClaim
+        ```
+        """
+        clone = self._clone()
+        clone.user_info = schema
+        return clone
+
+    async def call(
+        self, http_auth: HTTPAuthorizationCredentials
+    ) -> Optional[Union[BaseModel, Dict[str, Any]]]:
         """Get current user and verification with ID-token Shortcut.
         Use as (`Auth` is this subclass, `auth` is `Auth` instanse and `app` is fastapi.FastAPI instanse):
         ```
@@ -215,19 +147,139 @@ class TokenUserInfoGetter(BaseTokenVerifier):
             return current_user
         ```
         """
-        if http_auth is None:
+        claims: Dict[str, Any] = jwt.get_unverified_claims(http_auth.credentials)
+
+        if not self.user_info:
+            return claims
+
+        try:
+            current_user = self.user_info.parse_obj(claims)
+            return current_user
+        except ValidationError:
             if self.auto_error:
                 raise HTTPException(
-                    status_code=status.HTTP_403_FORBIDDEN, detail=NOT_AUTHENTICATED
+                    status_code=status.HTTP_403_FORBIDDEN, detail=NOT_VALIDATED_CLAIMS,
                 )
             else:
                 return None
 
-        is_verified = self.verify_token(http_auth)
-        if not is_verified:
-            return None
 
-        claims = jwt.get_unverified_claims(http_auth.credentials)
+class ScopedAuth(CloudAuth):
+    """
+    Verify `Access token` and authorize it based on scope (or groups)
+    """
+
+    _scope_key: Optional[str] = None
+    user_info: Optional[Type[BaseModel]] = None
+
+    def __init__(
+        self,
+        jwks: JWKS,
+        user_info: Optional[Type[BaseModel]] = None,
+        scope_name: Optional[str] = None,
+        scope_key: Optional[str] = None,
+        auto_error: bool = True,
+    ):
+        self.user_info = user_info
+        self.auto_error = auto_error
+        self._scope_name = scope_name
+        if scope_key:
+            self._scope_key = scope_key
+
+        self._verifier = ScopedJWKsVerifier(
+            jwks,
+            scope_name=self._scope_name,
+            scope_key=self._scope_key,
+            auto_error=self.auto_error,
+        )
+
+    @property
+    def verifier(self) -> ScopedJWKsVerifier:
+        return self._verifier
+
+    @verifier.setter
+    def verifier(self, verifier: ScopedJWKsVerifier) -> None:
+        self._verifier = verifier
+
+    @property
+    def scope_key(self) -> Optional[str]:
+        return self._scope_key
+
+    @scope_key.setter
+    def scope_key(self, key: Optional[str]) -> None:
+        self._scope_key = key
+        self._verifier.scope_key = key
+
+    @property
+    def scope_name(self) -> Optional[str]:
+        return self._scope_name
+
+    @scope_name.setter
+    def scope_name(self, name: Optional[str]) -> None:
+        self._scope_name = name
+        self._verifier.scope_name = name
+
+    def _clone(self) -> "ScopedAuth":
+        cloned = super().clone(self)
+        if isinstance(cloned, ScopedAuth):
+            return cloned
+        raise NotImplementedError  # pragma: no cover
+
+    def scope(self, scope_name: str) -> "ScopedAuth":
+        """User-SCOPE verification Shortcut to pass it into dependencies.
+        Use as (`auth` is this instanse and `app` is fastapi.FastAPI instanse):
+        ```
+        from fastapi import Depends
+
+        @app.get("/", dependencies=[Depends(auth.scope("allowed scope"))])
+        def api():
+            return "hello"
+        ```
+        """
+        clone = self._clone()
+        clone.scope_name = scope_name
+        if not clone.scope_key:
+            raise AttributeError("declaire scope_key to set scope")
+        return clone
+
+    def claim(self, schema: Optional[Type[BaseModel]] = None) -> "ScopedAuth":
+        """User verification and validation shortcut to pass it into app arguments.
+        Use as (`auth` is this instanse and `app` is fastapi.FastAPI instanse):
+        ```
+        from fastapi import Depends
+        from pydantic import BaseModel
+
+        class CustomClaim(BaseModel):
+            sub: str
+
+        @app.get("/")
+        def api(user: CustomClaim = Depends(auth.claim(CustomClaim))):
+            return CustomClaim
+        ```
+        """
+        clone = self._clone()
+        clone.user_info = schema
+        return clone
+
+    async def call(
+        self, http_auth: HTTPAuthorizationCredentials
+    ) -> Optional[Union[Dict[str, Any], BaseModel, bool]]:
+        """User access-token verification Shortcut to pass it into dependencies.
+        Use as (`auth` is this instanse and `app` is fastapi.FastAPI instanse):
+        ```
+        from fastapi import Depends
+
+        @app.get("/", dependencies=[Depends(auth)])
+        def api():
+            return "hello"
+        ```
+        """
+
+        claims: Dict[str, Any] = jwt.get_unverified_claims(http_auth.credentials)
+
+        if not self.user_info:
+            return claims
+
         try:
             current_user = self.user_info.parse_obj(claims)
             return current_user

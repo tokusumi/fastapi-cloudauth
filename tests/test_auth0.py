@@ -1,15 +1,16 @@
 import os
 from sys import version_info as info
-import requests
 from typing import Optional
-from jose import jwt
-from fastapi import Depends, FastAPI
-from fastapi.testclient import TestClient
+
+import requests
 from auth0.v3.authentication import GetToken
 from auth0.v3.management import Auth0 as Auth0sdk
+from fastapi import Depends, FastAPI
+from fastapi.testclient import TestClient
+from jose import jwt
+from pydantic import BaseModel
 
 from fastapi_cloudauth.auth0 import Auth0, Auth0Claims, Auth0CurrentUser
-
 from tests.helpers import BaseTestCloudAuth, decode_token
 
 DOMAIN = os.getenv("AUTH0_DOMAIN")
@@ -81,7 +82,7 @@ def add_test_user(
     if scope:
         auth0.users.add_permissions(
             user_id,
-            [{"permission_name": scope, "resource_server_identifier": AUDIENCE,}],
+            [{"permission_name": scope, "resource_server_identifier": AUDIENCE}],
         )
 
 
@@ -107,12 +108,12 @@ def get_access_token(
         CLIENTID: Set client id of `Default App` in environment variable. See Applications in Auth0 dashboard
         CLIENT_SECRET: Set client secret of `Default App` in environment variable
         AUDIENCE: In Auth0 dashboard, create custom applications and API,
-                and add permission `read:test` into that API, 
+                and add permission `read:test` into that API,
                 and then copy the audience (identifier) in environment variable.
 
     NOTE: the followings setting in Auth0 dashboard is required
         - sidebar > Applications > settings > Advanced settings > grant: click `password` on
-        - top right icon > Set General > API Authorization Settings > Default Directory to Username-Password-Authentication            
+        - top right icon > Set General > API Authorization Settings > Default Directory to Username-Password-Authentication
     """
     resp = requests.post(
         f"https://{DOMAIN}/oauth/token",
@@ -139,12 +140,12 @@ def get_id_token(
         CLIENTID: Set client id of `Default App` in environment variable. See Applications in Auth0 dashboard
         CLIENT_SECRET: Set client secret of `Default App` in environment variable
         AUDIENCE: In Auth0 dashboard, create custom applications and API,
-                and add permission `read:test` into that API, 
+                and add permission `read:test` into that API,
                 and then copy the audience (identifier) in environment variable.
 
     NOTE: the followings setting in Auth0 dashboard is required
         - sidebar > Applications > settings > Advanced settings > grant: click `password` on
-        - top right icon > Set General > API Authorization Settings > Default Directory to Username-Password-Authentication            
+        - top right icon > Set General > API Authorization Settings > Default Directory to Username-Password-Authentication
     """
     resp = requests.post(
         f"https://{DOMAIN}/oauth/token",
@@ -220,12 +221,41 @@ class Auth0Client(BaseTestCloudAuth):
         )
 
         @app.get("/")
-        async def secure(payload=Depends(auth)) -> bool:
+        async def secure(payload: bool = Depends(auth)) -> bool:
             return payload
 
         @app.get("/no-error/", dependencies=[Depends(auth_no_error)])
         async def secure_no_error(payload=Depends(auth_no_error)) -> bool:
             return payload
+
+        class AccessClaim(BaseModel):
+            sub: str = None
+
+        @app.get("/access/user")
+        async def secure_access_user(
+            payload: AccessClaim = Depends(auth.claim(AccessClaim)),
+        ):
+            assert isinstance(payload, AccessClaim)
+            return payload
+
+        @app.get("/access/user/no-error/")
+        async def secure_access_user_no_error(
+            payload: AccessClaim = Depends(auth_no_error.claim(AccessClaim)),
+        ) -> Optional[AccessClaim]:
+            return payload
+
+        class InvalidAccessClaim(BaseModel):
+            fake_field: str
+
+        @app.get("/access/user/invalid")
+        async def invalid_access_user(payload=Depends(auth.claim(InvalidAccessClaim)),):
+            return payload  # pragma: no cover
+
+        @app.get("/access/user/invalid/no-error/")
+        async def invalid_access_user_no_error(
+            payload=Depends(auth_no_error.claim(InvalidAccessClaim)),
+        ) -> Optional[InvalidAccessClaim]:
+            assert payload is None
 
         @app.get("/scope/")
         async def secure_scope(payload=Depends(auth.scope(self.scope))) -> bool:

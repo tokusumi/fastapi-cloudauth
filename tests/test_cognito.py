@@ -1,14 +1,15 @@
 import os
 from sys import version_info as info
+from typing import Optional
+
 import boto3
 from botocore.exceptions import ClientError
-from typing import Optional
 from fastapi import Depends, FastAPI
 from fastapi.testclient import TestClient
+from pydantic.main import BaseModel
 
 from fastapi_cloudauth import Cognito, CognitoCurrentUser
 from fastapi_cloudauth.cognito import CognitoClaims
-
 from tests.helpers import BaseTestCloudAuth, decode_token
 
 REGION = os.getenv("COGNITO_REGION")
@@ -40,19 +41,19 @@ def add_test_user(
     password="testPass1-",
     scope: Optional[str] = None,
 ):
-    resp = client.sign_up(
+    client.sign_up(
         ClientId=CLIENTID,
         Username=username,
         Password=password,
-        UserAttributes=[{"Name": "email", "Value": username},],
+        UserAttributes=[{"Name": "email", "Value": username}],
     )
-    resp = client.admin_confirm_sign_up(UserPoolId=USERPOOLID, Username=username)
+    client.admin_confirm_sign_up(UserPoolId=USERPOOLID, Username=username)
     if scope:
         try:
-            resp = client.create_group(GroupName=scope, UserPoolId=USERPOOLID)
-        except ClientError as e:  # pragma: no cover
+            client.create_group(GroupName=scope, UserPoolId=USERPOOLID)
+        except ClientError:  # pragma: no cover
             pass  # pragma: no cover
-        resp = client.admin_add_user_to_group(
+        client.admin_add_user_to_group(
             UserPoolId=USERPOOLID, Username=username, GroupName=scope,
         )
 
@@ -77,8 +78,8 @@ def delete_cognito_user(
     client, username=f"test_user{info.major}{info.minor}@example.com",
 ):
     try:
-        response = client.admin_delete_user(UserPoolId=USERPOOLID, Username=username)
-    except:  # pragma: no cover
+        client.admin_delete_user(UserPoolId=USERPOOLID, Username=username)
+    except Exception:  # pragma: no cover
         pass  # pragma: no cover
 
 
@@ -138,6 +139,35 @@ class CognitoClient(BaseTestCloudAuth):
         async def secure_no_error(payload=Depends(auth_no_error)):
             assert payload is None
 
+        class AccessClaim(BaseModel):
+            sub: str = None
+
+        @app.get("/access/user")
+        async def secure_access_user(
+            payload: AccessClaim = Depends(auth.claim(AccessClaim)),
+        ):
+            assert isinstance(payload, AccessClaim)
+            return payload
+
+        @app.get("/access/user/no-error/")
+        async def secure_access_user_no_error(
+            payload: AccessClaim = Depends(auth_no_error.claim(AccessClaim)),
+        ) -> Optional[AccessClaim]:
+            return payload
+
+        class InvalidAccessClaim(BaseModel):
+            fake_field: str
+
+        @app.get("/access/user/invalid")
+        async def invalid_access_user(payload=Depends(auth.claim(InvalidAccessClaim)),):
+            return payload  # pragma: no cover
+
+        @app.get("/access/user/invalid/no-error/")
+        async def invalid_access_user_no_error(
+            payload=Depends(auth_no_error.claim(InvalidAccessClaim)),
+        ) -> Optional[InvalidAccessClaim]:
+            assert payload is None
+
         @app.get("/scope/", dependencies=[Depends(auth.scope(self.scope))])
         async def secure_scope() -> bool:
             pass
@@ -190,4 +220,3 @@ class CognitoClient(BaseTestCloudAuth):
         # id token
         id_header, id_payload, *_ = decode_token(self.ID_TOKEN)
         assert id_payload.get("email") == self.user
-

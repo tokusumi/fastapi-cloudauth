@@ -1,5 +1,5 @@
-import json
 import base64
+import json
 
 
 class BaseTestCloudAuth:
