@@ -5,6 +5,7 @@ from botocore.exceptions import ClientError
 from typing import Optional
 from fastapi import Depends, FastAPI
 from fastapi.testclient import TestClient
+from pydantic.main import BaseModel
 
 from fastapi_cloudauth import Cognito, CognitoCurrentUser
 from fastapi_cloudauth.cognito import CognitoClaims
@@ -136,6 +137,35 @@ class CognitoClient(BaseTestCloudAuth):
 
         @app.get("/no-error/")
         async def secure_no_error(payload=Depends(auth_no_error)):
+            assert payload is None
+
+        class AccessClaim(BaseModel):
+            sub: str = None
+
+        @app.get("/access/user")
+        async def secure_access_user(
+            payload: AccessClaim = Depends(auth.claim(AccessClaim)),
+        ):
+            assert isinstance(payload, AccessClaim)
+            return payload
+
+        @app.get("/access/user/no-error/")
+        async def secure_access_user_no_error(
+            payload: AccessClaim = Depends(auth_no_error.claim(AccessClaim)),
+        ) -> Optional[AccessClaim]:
+            return payload
+
+        class InvalidAccessClaim(BaseModel):
+            fake_field: str
+
+        @app.get("/access/user/invalid")
+        async def secure_access_user(payload=Depends(auth.claim(InvalidAccessClaim)),):
+            return payload  # pragma: no cover
+
+        @app.get("/access/user/invalid/no-error/")
+        async def secure_access_user_no_error(
+            payload=Depends(auth_no_error.claim(InvalidAccessClaim)),
+        ) -> Optional[InvalidAccessClaim]:
             assert payload is None
 
         @app.get("/scope/", dependencies=[Depends(auth.scope(self.scope))])

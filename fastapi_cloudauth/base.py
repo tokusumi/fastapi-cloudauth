@@ -1,4 +1,4 @@
-from typing import Generic, List, Dict, Optional, Any, Type, TypeVar
+from typing import Generic, List, Dict, Optional, Any, Type, TypeVar, Union
 from copy import deepcopy
 from abc import ABC, abstractmethod
 from jose import jwt  # type: ignore
@@ -112,9 +112,35 @@ class UserInfoAuth(CloudAuth):
     def verifier(self) -> JWKsVerifier:
         return self._verifier
 
+    @verifier.setter
+    def verifier(self, verifier: JWKsVerifier) -> None:
+        self._verifier = verifier
+
+    def _clone(self) -> "UserInfoAuth":
+        return super().clone(self)
+
+    def claim(self, schema: Optional[Type[BaseModel]] = None) -> "UserInfoAuth":
+        """User verification and validation shortcut to pass it into app arguments.
+        Use as (`auth` is this instanse and `app` is fastapi.FastAPI instanse):
+        ```
+        from fastapi import Depends
+        from pydantic import BaseModel
+
+        class CustomClaim(BaseModel):
+            sub: str
+
+        @app.get("/")
+        def api(user: CustomClaim = Depends(auth.claim(CustomClaim))):
+            return CustomClaim
+        ```
+        """
+        clone = self._clone()
+        clone.user_info = schema
+        return clone
+
     async def call(
         self, http_auth: HTTPAuthorizationCredentials
-    ) -> Optional[BaseModel]:
+    ) -> Optional[Union[BaseModel, Dict[str, Any]]]:
         """Get current user and verification with ID-token Shortcut.
         Use as (`Auth` is this subclass, `auth` is `Auth` instanse and `app` is fastapi.FastAPI instanse):
         ```
@@ -125,10 +151,11 @@ class UserInfoAuth(CloudAuth):
             return current_user
         ```
         """
-        if not self.user_info:
-            return None
+        claims: Dict[str, Any] = jwt.get_unverified_claims(http_auth.credentials)
 
-        claims = jwt.get_unverified_claims(http_auth.credentials)
+        if not self.user_info:
+            return claims
+
         try:
             current_user = self.user_info.parse_obj(claims)
             return current_user
@@ -147,14 +174,18 @@ class ScopedAuth(CloudAuth):
     """
 
     _scope_key: Optional[str] = None
+    user_info: Optional[Type[BaseModel]] = None
 
     def __init__(
         self,
         jwks: JWKS,
+        user_info: Optional[Type[BaseModel]] = None,
         scope_name: Optional[str] = None,
         scope_key: Optional[str] = None,
         auto_error: bool = True,
     ):
+        self.user_info = user_info
+        self.auto_error = auto_error
         self._scope_name = scope_name
         if scope_key:
             self._scope_key = scope_key
@@ -163,7 +194,7 @@ class ScopedAuth(CloudAuth):
             jwks,
             scope_name=self._scope_name,
             scope_key=self._scope_key,
-            auto_error=auto_error,
+            auto_error=self.auto_error,
         )
 
     @property
@@ -212,7 +243,28 @@ class ScopedAuth(CloudAuth):
             raise AttributeError("declaire scope_key to set scope")
         return clone
 
-    async def call(self, http_auth: HTTPAuthorizationCredentials) -> Optional[bool]:
+    def claim(self, schema: Optional[Type[BaseModel]] = None) -> "ScopedAuth":
+        """User verification and validation shortcut to pass it into app arguments.
+        Use as (`auth` is this instanse and `app` is fastapi.FastAPI instanse):
+        ```
+        from fastapi import Depends
+        from pydantic import BaseModel
+
+        class CustomClaim(BaseModel):
+            sub: str
+
+        @app.get("/")
+        def api(user: CustomClaim = Depends(auth.claim(CustomClaim))):
+            return CustomClaim
+        ```
+        """
+        clone = self._clone()
+        clone.user_info = schema
+        return clone
+
+    async def call(
+        self, http_auth: HTTPAuthorizationCredentials
+    ) -> Optional[Union[Dict[str, Any], BaseModel, bool]]:
         """User access-token verification Shortcut to pass it into dependencies.
         Use as (`auth` is this instanse and `app` is fastapi.FastAPI instanse):
         ```
@@ -223,4 +275,19 @@ class ScopedAuth(CloudAuth):
             return "hello"
         ```
         """
-        return True
+
+        claims: Dict[str, Any] = jwt.get_unverified_claims(http_auth.credentials)
+
+        if not self.user_info:
+            return claims
+
+        try:
+            current_user = self.user_info.parse_obj(claims)
+            return current_user
+        except ValidationError:
+            if self.auto_error:
+                raise HTTPException(
+                    status_code=status.HTTP_403_FORBIDDEN, detail=NOT_VALIDATED_CLAIMS,
+                )
+            else:
+                return None

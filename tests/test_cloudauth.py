@@ -47,6 +47,12 @@ class AccessTokenTestCase(BaseTestCloudAuth):
             client=self.client, endpoint=path, token=token, status_code=200
         )
 
+    def userinfo_success_case(self, path: str, token: str = None):
+        response = self.success_case(path, token)
+        for value in response.json().values():
+            assert value, f"{response.content} failed to parse"
+        return response
+
     def failure_case(self, path: str, token: str = None, detail=""):
         return assert_get_response(
             client=self.client,
@@ -60,7 +66,6 @@ class AccessTokenTestCase(BaseTestCloudAuth):
         self.success_case("/", self.ACCESS_TOKEN)
 
     def test_no_token(self):
-        # handle in fastapi.security.HTTPBearer
         self.failure_case("/")
         # not auto_error
         self.success_case("no-error")
@@ -97,6 +102,22 @@ class AccessTokenTestCase(BaseTestCloudAuth):
     def test_invalid_scope(self):
         self.failure_case("/scope/", self.ACCESS_TOKEN, detail=SCOPE_NOT_MATCHED)
         self.success_case("/scope/no-error/", self.ACCESS_TOKEN)
+
+    def test_valid_token_extraction(self):
+        self.userinfo_success_case("/access/user", self.ACCESS_TOKEN)
+
+    def test_no_token_extraction(self):
+        self.failure_case("/access/user")
+        # not auto_error
+        self.success_case("/access/user/no-error")
+
+    def test_insufficient_user_info_from_access_token(self):
+        # verified but token does not contains user info
+        self.failure_case(
+            "/access/user/invalid/", self.ACCESS_TOKEN, detail=NOT_VALIDATED_CLAIMS
+        )
+        # not auto_error
+        self.success_case("/access/user/invalid/no-error", self.ACCESS_TOKEN)
 
 
 class IdTokenTestCase(BaseTestCloudAuth):

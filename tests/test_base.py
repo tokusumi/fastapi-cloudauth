@@ -1,7 +1,7 @@
 import pytest
 from fastapi import HTTPException
 from fastapi.security import HTTPAuthorizationCredentials
-
+from pydantic import BaseModel
 from fastapi_cloudauth.base import UserInfoAuth, ScopedAuth
 from fastapi_cloudauth.verification import JWKS
 
@@ -75,12 +75,54 @@ def test_validation_scope(mocker, scopes):
 
 @pytest.mark.unittest
 @pytest.mark.asyncio
-async def test_forget_def_user_info():
-    get_current_user = UserInfoAuth(jwks=JWKS(keys=[]))
-
-    get_current_user.user_info = None
+@pytest.mark.parametrize(
+    "auth", [UserInfoAuth, ScopedAuth],
+)
+async def test_forget_def_user_info(auth):
     dummy_http_auth = HTTPAuthorizationCredentials(
-        scheme="a", credentials="aaaaaaaaaaaaaaaa"
+        scheme="a",
+        credentials="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxMjM0NTY3ODkwIiwibmFtZSI6Im5hbWUiLCJpYXQiOjE1MTYyMzkwMjJ9.3ZEDmhWNZWDbJDPDlZX_I3oaalNYXdoT-bKLxIxQK4U",
     )
+    """If `.user_info` is None, return raw payload"""
+    get_current_user = auth(jwks=JWKS(keys=[]))
+    assert get_current_user.user_info is None
     res = await get_current_user.call(dummy_http_auth)
-    assert res is None
+    assert res == {"sub": "1234567890", "name": "name", "iat": 1516239022}
+
+
+@pytest.mark.unittest
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "auth", [UserInfoAuth, ScopedAuth],
+)
+async def test_assign_user_info(auth):
+    """three way to set user info schema
+    1. pass it to arguments when create instance
+    2. call `.claim` method and pass it to that arguments
+    3. assign with `=` statements
+    """
+
+    class SubSchema(BaseModel):
+        sub: str
+
+    class NameSchema(BaseModel):
+        name: str
+
+    class IatSchema(BaseModel):
+        iat: int
+
+    # authorized token
+    dummy_http_auth = HTTPAuthorizationCredentials(
+        scheme="a",
+        credentials="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxMjM0NTY3ODkwIiwibmFtZSI6Im5hbWUiLCJpYXQiOjE1MTYyMzkwMjJ9.3ZEDmhWNZWDbJDPDlZX_I3oaalNYXdoT-bKLxIxQK4U",
+    )
+
+    user = auth(jwks=JWKS(keys=[]), user_info=IatSchema)
+    assert await user.call(dummy_http_auth) == IatSchema(iat=1516239022)
+
+    assert await user.claim(SubSchema).call(dummy_http_auth) == SubSchema(
+        sub="1234567890"
+    )
+
+    user.user_info = NameSchema
+    assert await user.call(dummy_http_auth) == NameSchema(name="name")

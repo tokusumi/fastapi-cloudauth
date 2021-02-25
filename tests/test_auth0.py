@@ -5,6 +5,7 @@ from typing import Optional
 from jose import jwt
 from fastapi import Depends, FastAPI
 from fastapi.testclient import TestClient
+from pydantic import BaseModel
 from auth0.v3.authentication import GetToken
 from auth0.v3.management import Auth0 as Auth0sdk
 
@@ -220,12 +221,41 @@ class Auth0Client(BaseTestCloudAuth):
         )
 
         @app.get("/")
-        async def secure(payload=Depends(auth)) -> bool:
+        async def secure(payload: bool = Depends(auth)) -> bool:
             return payload
 
         @app.get("/no-error/", dependencies=[Depends(auth_no_error)])
         async def secure_no_error(payload=Depends(auth_no_error)) -> bool:
             return payload
+
+        class AccessClaim(BaseModel):
+            sub: str = None
+
+        @app.get("/access/user")
+        async def secure_access_user(
+            payload: AccessClaim = Depends(auth.claim(AccessClaim)),
+        ):
+            assert isinstance(payload, AccessClaim)
+            return payload
+
+        @app.get("/access/user/no-error/")
+        async def secure_access_user_no_error(
+            payload: AccessClaim = Depends(auth_no_error.claim(AccessClaim)),
+        ) -> Optional[AccessClaim]:
+            return payload
+
+        class InvalidAccessClaim(BaseModel):
+            fake_field: str
+
+        @app.get("/access/user/invalid")
+        async def secure_access_user(payload=Depends(auth.claim(InvalidAccessClaim)),):
+            return payload  # pragma: no cover
+
+        @app.get("/access/user/invalid/no-error/")
+        async def secure_access_user_no_error(
+            payload=Depends(auth_no_error.claim(InvalidAccessClaim)),
+        ) -> Optional[InvalidAccessClaim]:
+            assert payload is None
 
         @app.get("/scope/")
         async def secure_scope(payload=Depends(auth.scope(self.scope))) -> bool:

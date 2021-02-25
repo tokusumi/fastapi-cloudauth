@@ -9,6 +9,8 @@ class Cognito(ScopedAuth):
     Verify access token of AWS Cognito
     """
 
+    user_info = None
+
     def __init__(
         self,
         region: str,

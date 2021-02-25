@@ -9,6 +9,8 @@ class Auth0(ScopedAuth):
     Verify access token of auth0
     """
 
+    user_info = None
+
     def __init__(
         self,
         domain: str,
