@@ -9,6 +9,7 @@ from .verification import JWKS
 class FirebaseClaims(BaseModel):
     user_id: str = Field(alias="user_id")
     email: str = Field(None, alias="email")
+    email_verified: bool = Field(alias="email_verified")
 
 
 class FirebaseCurrentUser(UserInfoAuth):
