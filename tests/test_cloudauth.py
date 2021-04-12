@@ -97,6 +97,12 @@ class AccessTokenTestCase(BaseTestCloudAuth):
         self.failure_case("/scope/", self.ACCESS_TOKEN, detail=SCOPE_NOT_MATCHED)
         self.success_case("/scope/no-error/", self.ACCESS_TOKEN)
 
+    def test_valid_scope_advanced(self):
+        self.success_case("/scope_advanced/", self.SCOPE_ACCESS_TOKEN)
+
+    def test_invalid_scope_advanced(self):
+        self.failure_case("/scope_advanced/", self.ACCESS_TOKEN, detail=SCOPE_NOT_MATCHED)
+
     def test_valid_token_extraction(self):
         self.userinfo_success_case("/access/user", self.ACCESS_TOKEN)
 
