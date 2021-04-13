@@ -1,6 +1,6 @@
 from abc import ABC, abstractmethod
 from copy import deepcopy
-from typing import Any, Dict, Optional
+from typing import Any, Dict, Optional, Union
 
 import requests
 from fastapi import HTTPException
@@ -17,6 +17,7 @@ from fastapi_cloudauth.messages import (
     NOT_VERIFIED,
     SCOPE_NOT_MATCHED,
 )
+from fastapi_cloudauth.scope import AdvancedScope
 
 
 class Verifier(ABC):
@@ -135,7 +136,7 @@ class ScopedJWKsVerifier(JWKsVerifier):
     def __init__(
         self,
         jwks: JWKS,
-        scope_name: Optional[str] = None,
+        scope_name: Union[Optional[str], Optional[AdvancedScope]] = None,
         scope_key: Optional[str] = None,
         auto_error: bool = True,
         *args: Any,
@@ -159,6 +160,14 @@ class ScopedJWKsVerifier(JWKsVerifier):
         scopes = claims.get(self.scope_key)
         if isinstance(scopes, str):
             scopes = {scope.strip() for scope in scopes.split()}
+        if isinstance(self.scope_name, AdvancedScope) and scopes:
+            match = set(self.scope_name.scopes) & set(scopes)
+            if self.scope_name.comperator == "any" and len(match) > 0:
+                return True
+            elif self.scope_name.comperator == "all" and len(match) >= len(self.scope_name.scopes):
+                return True
+            else:
+                return False
         if scopes is None or self.scope_name not in scopes:
             if self.auto_error:
                 raise HTTPException(

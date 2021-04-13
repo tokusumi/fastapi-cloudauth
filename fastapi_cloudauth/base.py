@@ -16,6 +16,7 @@ from fastapi_cloudauth.verification import (
     ScopedJWKsVerifier,
     Verifier,
 )
+from fastapi_cloudauth.scope import AdvancedScope
 
 
 class CloudAuth(ABC):
@@ -176,7 +177,7 @@ class ScopedAuth(CloudAuth):
         self,
         jwks: JWKS,
         user_info: Optional[Type[BaseModel]] = None,
-        scope_name: Optional[str] = None,
+        scope_name: Union[Optional[str], Optional[AdvancedScope]] = None,
         scope_key: Optional[str] = None,
         auto_error: bool = True,
     ):
