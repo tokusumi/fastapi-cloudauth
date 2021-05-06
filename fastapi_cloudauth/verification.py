@@ -8,6 +8,7 @@ from fastapi.security import HTTPAuthorizationCredentials
 from jose import jwk  # type: ignore
 from jose import jwt
 from jose.backends.base import Key  # type: ignore
+from jose.exceptions import JWTError
 from jose.utils import base64url_decode  # type: ignore
 from starlette import status
 
@@ -85,7 +86,17 @@ class JWKsVerifier(Verifier):
 
     def _get_publickey(self, http_auth: HTTPAuthorizationCredentials) -> Optional[Key]:
         token = http_auth.credentials
-        header = jwt.get_unverified_header(token)
+
+        try:
+            header = jwt.get_unverified_header(token)
+        except JWTError as e:
+            if self.auto_error:
+                raise HTTPException(
+                    status_code=status.HTTP_403_FORBIDDEN, detail=NOT_AUTHENTICATED
+                ) from e
+            else:
+                return None
+
         kid = header.get("kid")
         if not kid:
             if self.auto_error:
@@ -98,7 +109,8 @@ class JWKsVerifier(Verifier):
         if not publickey:
             if self.auto_error:
                 raise HTTPException(
-                    status_code=status.HTTP_403_FORBIDDEN, detail=NO_PUBLICKEY,
+                    status_code=status.HTTP_403_FORBIDDEN,
+                    detail=NO_PUBLICKEY,
                 )
             else:
                 return None
@@ -162,7 +174,8 @@ class ScopedJWKsVerifier(JWKsVerifier):
         if scopes is None or self.scope_name not in scopes:
             if self.auto_error:
                 raise HTTPException(
-                    status_code=status.HTTP_403_FORBIDDEN, detail=SCOPE_NOT_MATCHED,
+                    status_code=status.HTTP_403_FORBIDDEN,
+                    detail=SCOPE_NOT_MATCHED,
                 )
             return False
         return True
