@@ -1,6 +1,7 @@
 from abc import ABC, abstractmethod
 from copy import deepcopy
 from typing import Any, Dict, List, Optional
+from enum import Enum
 
 import requests
 from fastapi import HTTPException
@@ -142,11 +143,17 @@ class JWKsVerifier(Verifier):
         return clone
 
 
+class Operator(Enum):
+    _all = "all"
+    _any = "any"
+
+
 class ScopedJWKsVerifier(JWKsVerifier):
     def __init__(
         self,
         jwks: JWKS,
         scope_name: Optional[List[str]] = None,
+        op: Operator = Operator._all,
         scope_key: Optional[str] = None,
         auto_error: bool = True,
         *args: Any,
@@ -158,6 +165,7 @@ class ScopedJWKsVerifier(JWKsVerifier):
         super().__init__(jwks, auto_error=auto_error)
         self.scope_name = None if not scope_name else set(scope_name)
         self.scope_key = scope_key
+        self.op = op
 
     def clone(self, instance: "ScopedJWKsVerifier") -> "ScopedJWKsVerifier":  # type: ignore[override]
         cloned = super().clone(instance)
@@ -190,7 +198,12 @@ class ScopedJWKsVerifier(JWKsVerifier):
             except TypeError:
                 matched = False
         if matched:
-            matched = self.scope_name.issubset(scopes)
+            if self.op == Operator._any:
+                # any
+                matched = len(self.scope_name & scopes) > 0
+            else:
+                # all
+                matched = self.scope_name.issubset(scopes)
         if not matched:
             if self.auto_error:
                 raise HTTPException(

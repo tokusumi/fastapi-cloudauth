@@ -15,6 +15,7 @@ from fastapi_cloudauth.verification import (
     JWKsVerifier,
     ScopedJWKsVerifier,
     Verifier,
+    Operator,
 )
 
 
@@ -179,6 +180,7 @@ class ScopedAuth(CloudAuth):
         scope_name: Optional[List[str]] = None,
         scope_key: Optional[str] = None,
         auto_error: bool = True,
+        op: Operator = Operator._all,
     ):
         self.user_info = user_info
         self.auto_error = auto_error
@@ -189,6 +191,7 @@ class ScopedAuth(CloudAuth):
         self._verifier = ScopedJWKsVerifier(
             jwks,
             scope_name=self._scope_name,
+            op=op,
             scope_key=self._scope_key,
             auto_error=self.auto_error,
         )
@@ -225,21 +228,29 @@ class ScopedAuth(CloudAuth):
             return cloned
         raise NotImplementedError  # pragma: no cover
 
-    def scope(self, scope_name: Optional[Union[str, List[str]]]) -> "ScopedAuth":
+    def scope(
+        self, scope_name: Optional[Union[str, List[str]]], op=Operator._all
+    ) -> "ScopedAuth":
         """User-SCOPE verification Shortcut to pass it into dependencies.
         Use as (`auth` is this instanse and `app` is fastapi.FastAPI instanse):
         ```
         from fastapi import Depends
+        from fastapi_cloudauth import Operator
 
         @app.get("/", dependencies=[Depends(auth.scope(["allowned", "scopes"]))])
-        def api():
-            return "hello"
+        def api_all_scope():
+            return "user has all scopes"
+
+        @app.get("/", dependencies=[Depends(auth.scope(["allowned", "scopes"], op=Operator._any))])
+        def api_any_scope():
+            return "user has any scopes"
         ```
         """
         clone = self._clone()
         if isinstance(scope_name, str):
             scope_name = [scope_name]
         clone.scope_name = scope_name
+        clone._verifier.op = op
         if not clone.scope_key:
             raise AttributeError("declaire scope_key to set scope")
         return clone

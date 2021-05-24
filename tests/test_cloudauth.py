@@ -103,6 +103,10 @@ class AccessTokenTestCase(BaseTestCloudAuth):
     def test_valid_scope(self):
         self.success_case("/scope/", self.SCOPE_ACCESS_TOKEN)
 
+    def test_valid_scope_any(self):
+        # access token must include a part of scopes in SCOPE_ACCESS_TOKEN
+        self.success_case("/scope-any/", self.ACCESS_TOKEN)
+
     def test_invalid_scope(self):
         self.failure_case("/scope/", self.ACCESS_TOKEN, detail=SCOPE_NOT_MATCHED)
         self.success_case("/scope/no-error/", self.ACCESS_TOKEN)

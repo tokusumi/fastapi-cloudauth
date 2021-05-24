@@ -2,7 +2,12 @@ import pytest
 from fastapi import HTTPException
 from fastapi.security import HTTPAuthorizationCredentials
 
-from fastapi_cloudauth.verification import JWKS, JWKsVerifier, ScopedJWKsVerifier
+from fastapi_cloudauth.verification import (
+    JWKS,
+    JWKsVerifier,
+    ScopedJWKsVerifier,
+    Operator,
+)
 
 
 @pytest.mark.unittest
@@ -71,7 +76,7 @@ def test_verify_scope_exeption(mocker):
 @pytest.mark.parametrize(
     "scopes", ["xxx:xxx yyy:yyy", ["xxx:xxx", "yyy:yyy"]],
 )
-def test_scope_match_logic(mocker, scopes):
+def test_scope_match_all(mocker, scopes):
     scope_key = "dummy key"
     http_auth = HTTPAuthorizationCredentials(scheme="a", credentials="dummy-token",)
 
@@ -115,3 +120,68 @@ def test_scope_match_logic(mocker, scopes):
     )
     assert not verifier._verify_scope(http_auth)
 
+
+@pytest.mark.unittest
+@pytest.mark.parametrize(
+    "scopes", ["xxx:xxx yyy:yyy", ["xxx:xxx", "yyy:yyy"]],
+)
+def test_scope_match_any(mocker, scopes):
+    scope_key = "dummy key"
+    http_auth = HTTPAuthorizationCredentials(scheme="a", credentials="dummy-token",)
+
+    # check scope logic
+    mocker.patch(
+        "fastapi_cloudauth.verification.jwt.get_unverified_claims",
+        return_value={"dummy key": scopes},
+    )
+    jwks = JWKS(keys=[])
+
+    # api scope < user scope
+    verifier = ScopedJWKsVerifier(
+        scope_name=["xxx:xxx"],
+        jwks=jwks,
+        scope_key=scope_key,
+        auto_error=False,
+        op=Operator._any,
+    )
+    assert verifier._verify_scope(http_auth)
+
+    # api scope == user scope (in order)
+    verifier = ScopedJWKsVerifier(
+        scope_name=["xxx:xxx", "yyy:yyy"],
+        op=Operator._any,
+        jwks=jwks,
+        scope_key=scope_key,
+        auto_error=False,
+    )
+    assert verifier._verify_scope(http_auth)
+
+    # api scope == user scope (disorder)
+    verifier = ScopedJWKsVerifier(
+        scope_name=["yyy:yyy", "xxx:xxx"],
+        op=Operator._any,
+        jwks=jwks,
+        scope_key=scope_key,
+        auto_error=False,
+    )
+    assert verifier._verify_scope(http_auth)
+
+    # api scope > user scope
+    verifier = ScopedJWKsVerifier(
+        scope_name=["yyy:yyy", "xxx:xxx", "zzz:zzz"],
+        op=Operator._any,
+        jwks=jwks,
+        scope_key=scope_key,
+        auto_error=False,
+    )
+    assert verifier._verify_scope(http_auth)
+
+    # api scope ^ user scope
+    verifier = ScopedJWKsVerifier(
+        scope_name=["zzz:zzz"],
+        op=Operator._any,
+        jwks=jwks,
+        scope_key=scope_key,
+        auto_error=False,
+    )
+    assert not verifier._verify_scope(http_auth)

@@ -10,6 +10,7 @@ from fastapi.testclient import TestClient
 from jose import jwt
 from pydantic import BaseModel
 
+from fastapi_cloudauth.verification import Operator
 from fastapi_cloudauth.auth0 import Auth0, Auth0Claims, Auth0CurrentUser
 from tests.helpers import BaseTestCloudAuth, decode_token
 
@@ -274,6 +275,12 @@ class Auth0Client(BaseTestCloudAuth):
             payload=Depends(auth_no_error.scope(self.scope)),
         ):
             assert payload is None
+
+        @app.get("/scope-any/")
+        async def secure_scope_any(
+            payload=Depends(auth.scope(self.scope, op=Operator._any))
+        ) -> bool:
+            pass
 
         @app.get("/user/", response_model=Auth0Claims)
         async def secure_user(current_user: Auth0Claims = Depends(get_current_user)):

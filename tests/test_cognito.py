@@ -8,6 +8,7 @@ from fastapi import Depends, FastAPI
 from fastapi.testclient import TestClient
 from pydantic.main import BaseModel
 
+from fastapi_cloudauth.verification import Operator
 from fastapi_cloudauth import Cognito, CognitoCurrentUser
 from fastapi_cloudauth.cognito import CognitoClaims
 from tests.helpers import BaseTestCloudAuth, decode_token
@@ -178,6 +179,13 @@ class CognitoClient(BaseTestCloudAuth):
             payload=Depends(auth_no_error.scope(self.scope)),
         ):
             assert payload is None
+
+        @app.get(
+            "/scope-any/",
+            dependencies=[Depends(auth.scope(self.scope, op=Operator._any))],
+        )
+        async def secure_scope_any() -> bool:
+            pass
 
         @app.get("/user/", response_model=CognitoClaims)
         async def secure_user(current_user: CognitoClaims = Depends(get_current_user)):
