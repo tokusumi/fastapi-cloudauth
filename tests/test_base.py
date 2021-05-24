@@ -28,7 +28,10 @@ def test_return_instance_with_scope():
     obj = verifier.scope(scope_name)
     assert isinstance(obj, ScopedAuth)
     assert obj.scope_key == scope_key, "scope_key mustn't be cleared."
-    assert obj.scope_name == scope_name, "Must set scope_name in returned instanse."
+    assert obj.scope_name == [scope_name], "Must set scope_name in returned instanse."
+    assert obj.verifier.scope_name == set(
+        [scope_name]
+    ), "Must convert scope name into set."
     assert (
         obj.verifier._jwks_to_key == verifier.verifier._jwks_to_key
     ), "return cloned objects"

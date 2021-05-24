@@ -1,6 +1,6 @@
 import os
 from sys import version_info as info
-from typing import Optional
+from typing import List, Optional
 
 import boto3
 from botocore.exceptions import ClientError
@@ -39,7 +39,7 @@ def add_test_user(
     client,
     username=f"test_user{info.major}{info.minor}@example.com",
     password="testPass1-",
-    scope: Optional[str] = None,
+    scopes: Optional[List[str]] = None,
 ):
     client.sign_up(
         ClientId=CLIENTID,
@@ -48,14 +48,15 @@ def add_test_user(
         UserAttributes=[{"Name": "email", "Value": username}],
     )
     client.admin_confirm_sign_up(UserPoolId=USERPOOLID, Username=username)
-    if scope:
-        try:
-            client.create_group(GroupName=scope, UserPoolId=USERPOOLID)
-        except ClientError:  # pragma: no cover
-            pass  # pragma: no cover
-        client.admin_add_user_to_group(
-            UserPoolId=USERPOOLID, Username=username, GroupName=scope,
-        )
+    if scopes:
+        for scope in scopes:
+            try:
+                client.create_group(GroupName=scope, UserPoolId=USERPOOLID)
+            except ClientError:  # pragma: no cover
+                pass  # pragma: no cover
+            client.admin_add_user_to_group(
+                UserPoolId=USERPOOLID, Username=username, GroupName=scope,
+            )
 
 
 def get_cognito_token(
@@ -87,7 +88,7 @@ class CognitoClient(BaseTestCloudAuth):
     scope_user = f"test_scope{info.major}{info.minor}@example.com"
     user = f"test_user{info.major}{info.minor}@example.com"
     password = "testPass1-"
-    scope = "read:test"
+    scope = ["read:test", "write:test"]
 
     def setup(self):
         assert_env()
@@ -120,13 +121,13 @@ class CognitoClient(BaseTestCloudAuth):
         self.client = initialize()
 
         delete_cognito_user(self.client, self.user)
-        add_test_user(self.client, self.user, self.password)
+        add_test_user(self.client, self.user, self.password, scopes=[self.scope[0]])
         self.ACCESS_TOKEN, self.ID_TOKEN = get_cognito_token(
             self.client, self.user, self.password
         )
 
         delete_cognito_user(self.client, self.scope_user)
-        add_test_user(self.client, self.scope_user, self.password, scope=self.scope)
+        add_test_user(self.client, self.scope_user, self.password, scopes=self.scope)
         self.SCOPE_ACCESS_TOKEN, self.SCOPE_ID_TOKEN = get_cognito_token(
             self.client, self.scope_user, self.password
         )
@@ -211,11 +212,11 @@ class CognitoClient(BaseTestCloudAuth):
     def decode(self):
         # access token
         header, payload, *_ = decode_token(self.ACCESS_TOKEN)
-        assert not payload.get("cognito:groups")
+        assert [self.scope[0]] == payload.get("cognito:groups")
 
         # scope token
         scope_header, scope_payload, *_ = decode_token(self.SCOPE_ACCESS_TOKEN)
-        assert self.scope in scope_payload.get("cognito:groups")
+        assert set(self.scope) == set(scope_payload.get("cognito:groups"))
 
         # id token
         id_header, id_payload, *_ = decode_token(self.ID_TOKEN)

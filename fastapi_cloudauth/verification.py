@@ -1,6 +1,6 @@
 from abc import ABC, abstractmethod
 from copy import deepcopy
-from typing import Any, Dict, Optional
+from typing import Any, Dict, List, Optional
 
 import requests
 from fastapi import HTTPException
@@ -146,7 +146,7 @@ class ScopedJWKsVerifier(JWKsVerifier):
     def __init__(
         self,
         jwks: JWKS,
-        scope_name: Optional[str] = None,
+        scope_name: Optional[List[str]] = None,
         scope_key: Optional[str] = None,
         auto_error: bool = True,
         *args: Any,
@@ -156,7 +156,7 @@ class ScopedJWKsVerifier(JWKsVerifier):
         auto-error: if False, return payload as b'null' for invalid token.
         """
         super().__init__(jwks, auto_error=auto_error)
-        self.scope_name = scope_name
+        self.scope_name = None if not scope_name else set(scope_name)
         self.scope_key = scope_key
 
     def clone(self, instance: "ScopedJWKsVerifier") -> "ScopedJWKsVerifier":  # type: ignore[override]
@@ -177,9 +177,21 @@ class ScopedJWKsVerifier(JWKsVerifier):
                 return False
 
         scopes = claims.get(self.scope_key)
+        if self.scope_name is None:
+            # scope is not required
+            return True
+
+        matched = True
         if isinstance(scopes, str):
             scopes = {scope.strip() for scope in scopes.split()}
-        if scopes is None or self.scope_name not in scopes:
+        else:
+            try:
+                scopes = set(scopes)
+            except TypeError:
+                matched = False
+        if matched:
+            matched = self.scope_name.issubset(scopes)
+        if not matched:
             if self.auto_error:
                 raise HTTPException(
                     status_code=status.HTTP_403_FORBIDDEN, detail=SCOPE_NOT_MATCHED,

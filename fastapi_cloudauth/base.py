@@ -1,6 +1,6 @@
 from abc import ABC, abstractmethod
 from copy import deepcopy
-from typing import Any, Dict, Optional, Type, Union
+from typing import Any, Dict, List, Optional, Type, Union
 
 from fastapi import Depends, HTTPException
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
@@ -176,7 +176,7 @@ class ScopedAuth(CloudAuth):
         self,
         jwks: JWKS,
         user_info: Optional[Type[BaseModel]] = None,
-        scope_name: Optional[str] = None,
+        scope_name: Optional[List[str]] = None,
         scope_key: Optional[str] = None,
         auto_error: bool = True,
     ):
@@ -211,13 +211,13 @@ class ScopedAuth(CloudAuth):
         self._verifier.scope_key = key
 
     @property
-    def scope_name(self) -> Optional[str]:
+    def scope_name(self) -> Optional[List[str]]:
         return self._scope_name
 
     @scope_name.setter
-    def scope_name(self, name: Optional[str]) -> None:
+    def scope_name(self, name: Optional[List[str]]) -> None:
         self._scope_name = name
-        self._verifier.scope_name = name
+        self._verifier.scope_name = None if name is None else set(name)
 
     def _clone(self) -> "ScopedAuth":
         cloned = super().clone(self)
@@ -225,18 +225,20 @@ class ScopedAuth(CloudAuth):
             return cloned
         raise NotImplementedError  # pragma: no cover
 
-    def scope(self, scope_name: str) -> "ScopedAuth":
+    def scope(self, scope_name: Optional[Union[str, List[str]]]) -> "ScopedAuth":
         """User-SCOPE verification Shortcut to pass it into dependencies.
         Use as (`auth` is this instanse and `app` is fastapi.FastAPI instanse):
         ```
         from fastapi import Depends
 
-        @app.get("/", dependencies=[Depends(auth.scope("allowed scope"))])
+        @app.get("/", dependencies=[Depends(auth.scope(["allowned", "scopes"]))])
         def api():
             return "hello"
         ```
         """
         clone = self._clone()
+        if isinstance(scope_name, str):
+            scope_name = [scope_name]
         clone.scope_name = scope_name
         if not clone.scope_key:
             raise AttributeError("declaire scope_key to set scope")
