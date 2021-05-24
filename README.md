@@ -51,7 +51,7 @@ app = FastAPI()
 auth = Cognito(region=os.environ["REGION"], userPoolId=os.environ["USERPOOLID"])
 
 
-@app.get("/", dependencies=[Depends(auth.scope("read:users"))])
+@app.get("/", dependencies=[Depends(auth.scope(["read:users"]))])
 def secure():
     # access token is valid
     return "Hello"
@@ -125,7 +125,7 @@ app = FastAPI()
 auth = Auth0(domain=os.environ["DOMAIN"])
 
 
-@app.get("/", dependencies=[Depends(auth.scope("read:users"))])
+@app.get("/", dependencies=[Depends(auth.scope(["read:users"]))])
 def secure():
     # access token is valid
     return "Hello"

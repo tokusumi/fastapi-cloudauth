@@ -145,7 +145,7 @@ After successfully created, it shows "Identifier" at the just bottom of API name
 And changes/add as follows:
 
 * In `Settings`>`RBAC Settings`, turn on `Enable RBAC` and `Add Permissions in the Access Token` and save it.
-* In `Permissions`, add new scope "read:test" (add something in descrition).
+* In `Permissions`, add new scope "read:test" and "write:test" (add something in descrition).
 
 #### Testing for Auth0
 
