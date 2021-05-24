@@ -1,8 +1,12 @@
 import pytest
 
-from fastapi_cloudauth.messages import (NO_PUBLICKEY, NOT_AUTHENTICATED,
-                                        NOT_VALIDATED_CLAIMS, NOT_VERIFIED,
-                                        SCOPE_NOT_MATCHED)
+from fastapi_cloudauth.messages import (
+    NO_PUBLICKEY,
+    NOT_AUTHENTICATED,
+    NOT_VALIDATED_CLAIMS,
+    NOT_VERIFIED,
+    SCOPE_NOT_MATCHED,
+)
 from tests.helpers import assert_get_response
 from tests.test_auth0 import Auth0Client
 from tests.test_cognito import CognitoClient
@@ -64,6 +68,12 @@ class AccessTokenTestCase(BaseTestCloudAuth):
         # not auto_error
         self.success_case("no-error")
 
+    def test_malformed_token(self):
+        # given malformed token
+        self.failure_case("/", "invaid-format-token", detail=NOT_AUTHENTICATED)
+        # not auto_error
+        self.success_case("no-error", "invaid-format-token")
+
     def test_incompatible_kid_token(self):
         # manipulate header
         token = self.ACCESS_TOKEN.split(".", 1)[-1]
@@ -96,6 +106,12 @@ class AccessTokenTestCase(BaseTestCloudAuth):
     def test_invalid_scope(self):
         self.failure_case("/scope/", self.ACCESS_TOKEN, detail=SCOPE_NOT_MATCHED)
         self.success_case("/scope/no-error/", self.ACCESS_TOKEN)
+
+    def test_malformed_token_for_scope(self):
+        # given malformed token
+        self.failure_case("/scope/", "invaid-format-token", detail=NOT_AUTHENTICATED)
+        # not auto_error
+        self.success_case("/scope/no-error", "invaid-format-token")
 
     def test_valid_token_extraction(self):
         self.userinfo_success_case("/access/user", self.ACCESS_TOKEN)
@@ -143,6 +159,12 @@ class IdTokenTestCase(BaseTestCloudAuth):
         self.failure_case("/user/")
         # not auto_error
         self.success_case("/user/no-error")
+
+    def test_malformed_token_for_scope(self):
+        # given malformed token
+        self.failure_case("/user/", "invaid-format-token", detail=NOT_AUTHENTICATED)
+        # not auto_error
+        self.success_case("/user/no-error", "invaid-format-token")
 
     def test_incompatible_kid_id_token(self):
         # manipulate header
