@@ -1,17 +1,14 @@
 import os
 from sys import version_info as info
-from typing import Optional
+from typing import Iterable, Optional
 
 import requests
 from auth0.v3.authentication import GetToken
 from auth0.v3.management import Auth0 as Auth0sdk
-from fastapi import Depends, FastAPI
-from fastapi.testclient import TestClient
 from jose import jwt
-from pydantic import BaseModel
 
 from fastapi_cloudauth.auth0 import Auth0, Auth0Claims, Auth0CurrentUser
-from tests.helpers import BaseTestCloudAuth, decode_token
+from tests.helpers import Auths, BaseTestCloudAuth, decode_token
 
 DOMAIN = os.getenv("AUTH0_DOMAIN")
 MGMT_CLIENTID = os.getenv("AUTH0_MGMT_CLIENTID")
@@ -169,13 +166,12 @@ class Auth0Client(BaseTestCloudAuth):
 
     username = f"test_user{info.major}{info.minor}@example.com"
     password = "testPass1-"
-    scope = "read:test"
 
-    def setup(self):
+    def setup(self, scope: Iterable[str]) -> None:
         assert_env()
 
         auth0sdk = init()
-
+        self.scope = scope[0]
         self.scope_username = (
             f"{self.scope.replace(':', '-')}{self.username}"
             if self.scope
@@ -202,96 +198,22 @@ class Auth0Client(BaseTestCloudAuth):
 
         self.auth0sdk = auth0sdk
 
-        app = FastAPI()
-
-        auth = Auth0(domain=DOMAIN)
-        auth_no_error = Auth0(domain=DOMAIN, auto_error=False)
-        get_current_user = Auth0CurrentUser(domain=DOMAIN)
-        get_current_user_no_error = Auth0CurrentUser(domain=DOMAIN, auto_error=False)
-
         class Auth0InvalidClaims(Auth0Claims):
             fake_field: str
 
         class Auth0FakeCurrentUser(Auth0CurrentUser):
             user_info = Auth0InvalidClaims
 
-        get_invalid_userinfo = Auth0FakeCurrentUser(domain=DOMAIN)
-        get_invalid_userinfo_no_error = Auth0FakeCurrentUser(
-            domain=DOMAIN, auto_error=False
+        self.TESTAUTH = Auths(
+            protect_auth=Auth0(domain=DOMAIN),
+            protect_auth_ne=Auth0(domain=DOMAIN, auto_error=False),
+            ms_auth=Auth0CurrentUser(domain=DOMAIN),
+            ms_auth_ne=Auth0CurrentUser(domain=DOMAIN, auto_error=False),
+            invalid_ms_auth=Auth0FakeCurrentUser(domain=DOMAIN),
+            invalid_ms_auth_ne=Auth0FakeCurrentUser(domain=DOMAIN, auto_error=False),
+            valid_claim=Auth0Claims,
+            invalid_claim=Auth0InvalidClaims,
         )
-
-        @app.get("/")
-        async def secure(payload: bool = Depends(auth)) -> bool:
-            return payload
-
-        @app.get("/no-error/", dependencies=[Depends(auth_no_error)])
-        async def secure_no_error(payload=Depends(auth_no_error)) -> bool:
-            return payload
-
-        class AccessClaim(BaseModel):
-            sub: str = None
-
-        @app.get("/access/user")
-        async def secure_access_user(
-            payload: AccessClaim = Depends(auth.claim(AccessClaim)),
-        ):
-            assert isinstance(payload, AccessClaim)
-            return payload
-
-        @app.get("/access/user/no-error/")
-        async def secure_access_user_no_error(
-            payload: AccessClaim = Depends(auth_no_error.claim(AccessClaim)),
-        ) -> Optional[AccessClaim]:
-            return payload
-
-        class InvalidAccessClaim(BaseModel):
-            fake_field: str
-
-        @app.get("/access/user/invalid")
-        async def invalid_access_user(payload=Depends(auth.claim(InvalidAccessClaim)),):
-            return payload  # pragma: no cover
-
-        @app.get("/access/user/invalid/no-error/")
-        async def invalid_access_user_no_error(
-            payload=Depends(auth_no_error.claim(InvalidAccessClaim)),
-        ) -> Optional[InvalidAccessClaim]:
-            assert payload is None
-
-        @app.get("/scope/")
-        async def secure_scope(payload=Depends(auth.scope(self.scope))) -> bool:
-            pass
-
-        @app.get("/scope/no-error/")
-        async def secure_scope_no_error(
-            payload=Depends(auth_no_error.scope(self.scope)),
-        ):
-            assert payload is None
-
-        @app.get("/user/", response_model=Auth0Claims)
-        async def secure_user(current_user: Auth0Claims = Depends(get_current_user)):
-            return current_user
-
-        @app.get("/user/no-error/")
-        async def secure_user_no_error(
-            current_user: Optional[Auth0Claims] = Depends(get_current_user_no_error),
-        ):
-            assert current_user is None
-
-        @app.get("/user/invalid/", response_model=Auth0InvalidClaims)
-        async def invalid_userinfo(
-            current_user: Auth0InvalidClaims = Depends(get_invalid_userinfo),
-        ):
-            return current_user  # pragma: no cover
-
-        @app.get("/user/invalid/no-error/")
-        async def invalid_userinfo_no_error(
-            current_user: Optional[Auth0InvalidClaims] = Depends(
-                get_invalid_userinfo_no_error
-            ),
-        ):
-            assert current_user is None
-
-        self.TESTCLIENT = TestClient(app)
 
     def teardown(self):
         delete_user(self.auth0sdk, self.username)

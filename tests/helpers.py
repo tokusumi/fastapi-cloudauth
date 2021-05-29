@@ -1,9 +1,25 @@
 import base64
 import json
-from typing import Any, Dict, List, Tuple
+from dataclasses import dataclass
+from typing import Any, Dict, Iterable, List, Tuple
 
 from fastapi.testclient import TestClient
+from pydantic.main import BaseModel
 from requests.models import Response
+
+from fastapi_cloudauth.base import ScopedAuth, UserInfoAuth
+
+
+@dataclass
+class Auths:
+    protect_auth: ScopedAuth
+    protect_auth_ne: ScopedAuth
+    ms_auth: UserInfoAuth
+    ms_auth_ne: UserInfoAuth
+    invalid_ms_auth: UserInfoAuth
+    invalid_ms_auth_ne: UserInfoAuth
+    valid_claim: BaseModel
+    invalid_claim: BaseModel
 
 
 class BaseTestCloudAuth:
@@ -17,16 +33,16 @@ class BaseTestCloudAuth:
     ACCESS_TOKEN = ""
     SCOPE_ACCESS_TOKEN = ""
     ID_TOKEN = ""
-    TESTCLIENT: TestClient = None
+    TESTAUTH: Auths
 
-    def setup(self) -> None:
-        ...
+    def setup(self, scope: Iterable[str]) -> None:
+        ...  # pragma: no cover
 
     def teardown(self) -> None:
-        ...
+        ...  # pragma: no cover
 
     def decode(self) -> None:
-        ...
+        ...  # pragma: no cover
 
 
 def assert_get_response(
