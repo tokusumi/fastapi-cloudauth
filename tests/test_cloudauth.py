@@ -1,4 +1,8 @@
+from typing import Type
+
 import pytest
+from fastapi.testclient import TestClient
+from requests.models import Response
 
 from fastapi_cloudauth.messages import (
     NO_PUBLICKEY,
@@ -7,51 +11,57 @@ from fastapi_cloudauth.messages import (
     NOT_VERIFIED,
     SCOPE_NOT_MATCHED,
 )
+from tests.helpers import BaseTestCloudAuth as Base
 from tests.helpers import assert_get_response
 from tests.test_auth0 import Auth0Client
 from tests.test_cognito import CognitoClient
 from tests.test_firebase import FirebaseClient
 
 
-class BaseTestCloudAuth:
-    cloud_auth = None
+class BaseTestCase:
+    ACCESS_TOKEN = ""
+    SCOPE_ACCESS_TOKEN = ""
+    ID_TOKEN = ""
+    client: TestClient
+    cloud_auth: Type[Base]
+    _cloud_auth: Base
 
     @classmethod
     def setup_class(cls):
         """set credentials and create test user"""
-        cls.cloud_auth = cls.cloud_auth()
-        cls.cloud_auth.setup()
+        cls._cloud_auth = cls.cloud_auth()
+        cls._cloud_auth.setup()
 
         # get access token and id token
-        cls.ACCESS_TOKEN = cls.cloud_auth.ACCESS_TOKEN
-        cls.SCOPE_ACCESS_TOKEN = cls.cloud_auth.SCOPE_ACCESS_TOKEN
-        cls.ID_TOKEN = cls.cloud_auth.ID_TOKEN
+        cls.ACCESS_TOKEN = cls._cloud_auth.ACCESS_TOKEN
+        cls.SCOPE_ACCESS_TOKEN = cls._cloud_auth.SCOPE_ACCESS_TOKEN
+        cls.ID_TOKEN = cls._cloud_auth.ID_TOKEN
 
         # set application for testing
-        cls.client = cls.cloud_auth.TESTCLIENT
+        cls.client = cls._cloud_auth.TESTCLIENT
 
     @classmethod
     def teardown_class(cls):
         """delete test user"""
-        cls.cloud_auth.teardown()
+        cls._cloud_auth.teardown()
 
     def test_decode_token(self):
-        self.cloud_auth.decode()
+        self._cloud_auth.decode()
 
 
-class AccessTokenTestCase(BaseTestCloudAuth):
-    def success_case(self, path: str, token: str = None):
+class AccessTokenTestCase(BaseTestCase):
+    def success_case(self, path: str, token: str = "") -> Response:
         return assert_get_response(
             client=self.client, endpoint=path, token=token, status_code=200
         )
 
-    def userinfo_success_case(self, path: str, token: str = None):
+    def userinfo_success_case(self, path: str, token: str = "") -> Response:
         response = self.success_case(path, token)
         for value in response.json().values():
             assert value, f"{response.content} failed to parse"
         return response
 
-    def failure_case(self, path: str, token: str = None, detail=""):
+    def failure_case(self, path: str, token: str = "", detail: str = "") -> Response:
         return assert_get_response(
             client=self.client,
             endpoint=path,
@@ -130,19 +140,19 @@ class AccessTokenTestCase(BaseTestCloudAuth):
         self.success_case("/access/user/invalid/no-error", self.ACCESS_TOKEN)
 
 
-class IdTokenTestCase(BaseTestCloudAuth):
-    def success_case(self, path: str, token: str = None):
+class IdTokenTestCase(BaseTestCase):
+    def success_case(self, path: str, token: str = "") -> Response:
         return assert_get_response(
             client=self.client, endpoint=path, token=token, status_code=200
         )
 
-    def user_success_case(self, path: str, token: str = None):
+    def user_success_case(self, path: str, token: str = "") -> Response:
         response = self.success_case(path, token)
         for value in response.json().values():
             assert value, f"{response.content} failed to parse"
         return response
 
-    def failure_case(self, path: str, token: str = None, detail=""):
+    def failure_case(self, path: str, token: str = "", detail: str = "") -> Response:
         return assert_get_response(
             client=self.client,
             endpoint=path,

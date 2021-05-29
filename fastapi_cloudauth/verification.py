@@ -5,11 +5,10 @@ from typing import Any, Dict, Optional
 import requests
 from fastapi import HTTPException
 from fastapi.security import HTTPAuthorizationCredentials
-from jose import jwk  # type: ignore
-from jose import jwt
-from jose.backends.base import Key  # type: ignore
-from jose.exceptions import JWTError  # type: ignore
-from jose.utils import base64url_decode  # type: ignore
+from jose import jwk, jwt
+from jose.backends.base import Key
+from jose.exceptions import JWTError
+from jose.utils import base64url_decode
 from starlette import status
 
 from fastapi_cloudauth.messages import (

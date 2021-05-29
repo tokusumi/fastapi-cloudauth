@@ -4,7 +4,7 @@ from typing import Any, Dict, Optional, Type, Union
 
 from fastapi import Depends, HTTPException
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
-from jose import jwt  # type: ignore
+from jose import jwt
 from pydantic import BaseModel
 from pydantic.error_wrappers import ValidationError
 from starlette import status

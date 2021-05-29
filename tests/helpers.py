@@ -1,5 +1,9 @@
 import base64
 import json
+from typing import Any, Dict, List, Tuple
+
+from fastapi.testclient import TestClient
+from requests.models import Response
 
 
 class BaseTestCloudAuth:
@@ -13,10 +17,21 @@ class BaseTestCloudAuth:
     ACCESS_TOKEN = ""
     SCOPE_ACCESS_TOKEN = ""
     ID_TOKEN = ""
-    TESTCLIENT = None
+    TESTCLIENT: TestClient = None
+
+    def setup(self) -> None:
+        ...
+
+    def teardown(self) -> None:
+        ...
+
+    def decode(self) -> None:
+        ...
 
 
-def assert_get_response(client, endpoint, token, status_code, detail=""):
+def assert_get_response(
+    client: TestClient, endpoint: str, token: str, status_code: int, detail: str = ""
+) -> Response:
     if token:
         headers = {"authorization": f"Bearer {token}"}
     else:
@@ -28,11 +43,11 @@ def assert_get_response(client, endpoint, token, status_code, detail=""):
     return response
 
 
-def decode_token(token):
+def decode_token(token: str) -> Tuple[Dict[str, Any], Dict[str, Any], List[str]]:
     header, payload, *rest = token.split(".")
 
     header += f"{'=' * (len(header) % 4)}"
     payload += f"{'=' * (len(payload) % 4)}"
-    header = json.loads(base64.b64decode(header).decode())
-    payload = json.loads(base64.b64decode(payload).decode())
-    return header, payload, rest
+    _header = json.loads(base64.b64decode(header).decode())
+    _payload = json.loads(base64.b64decode(payload).decode())
+    return _header, _payload, rest
