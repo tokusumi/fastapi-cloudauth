@@ -1,16 +1,13 @@
 import os
 from sys import version_info as info
-from typing import Optional
+from typing import Iterable, Optional
 
 import boto3
 from botocore.exceptions import ClientError
-from fastapi import Depends, FastAPI
-from fastapi.testclient import TestClient
-from pydantic.main import BaseModel
 
 from fastapi_cloudauth import Cognito, CognitoCurrentUser
 from fastapi_cloudauth.cognito import CognitoClaims
-from tests.helpers import BaseTestCloudAuth, decode_token
+from tests.helpers import Auths, BaseTestCloudAuth, decode_token
 
 REGION = os.getenv("COGNITO_REGION")
 USERPOOLID = os.getenv("COGNITO_USERPOOLID")
@@ -87,22 +84,13 @@ class CognitoClient(BaseTestCloudAuth):
     scope_user = f"test_scope{info.major}{info.minor}@example.com"
     user = f"test_user{info.major}{info.minor}@example.com"
     password = "testPass1-"
-    scope = "read:test"
 
-    def setup(self):
+    def setup(self, scope: Iterable[str]) -> None:
         assert_env()
 
-        app = FastAPI()
-
+        self.scope = scope[0]
         region = REGION
         userPoolId = USERPOOLID
-
-        auth = Cognito(region=region, userPoolId=userPoolId)
-        auth_no_error = Cognito(region=region, userPoolId=userPoolId, auto_error=False)
-        get_current_user = CognitoCurrentUser(region=region, userPoolId=userPoolId)
-        get_current_user_no_error = CognitoCurrentUser(
-            region=region, userPoolId=userPoolId, auto_error=False
-        )
 
         class CognitoInvalidClaims(CognitoClaims):
             fake_field: str
@@ -110,11 +98,23 @@ class CognitoClient(BaseTestCloudAuth):
         class CognitoFakeCurrentUser(CognitoCurrentUser):
             user_info = CognitoInvalidClaims
 
-        get_invalid_userinfo = CognitoFakeCurrentUser(
-            region=region, userPoolId=userPoolId
-        )
-        get_invalid_userinfo_no_error = CognitoFakeCurrentUser(
-            region=region, userPoolId=userPoolId, auto_error=False
+        self.TESTAUTH = Auths(
+            protect_auth=Cognito(region=region, userPoolId=userPoolId),
+            protect_auth_ne=Cognito(
+                region=region, userPoolId=userPoolId, auto_error=False
+            ),
+            ms_auth=CognitoCurrentUser(region=region, userPoolId=userPoolId),
+            ms_auth_ne=CognitoCurrentUser(
+                region=region, userPoolId=userPoolId, auto_error=False
+            ),
+            invalid_ms_auth=CognitoFakeCurrentUser(
+                region=region, userPoolId=userPoolId
+            ),
+            invalid_ms_auth_ne=CognitoFakeCurrentUser(
+                region=region, userPoolId=userPoolId, auto_error=False
+            ),
+            valid_claim=CognitoClaims,
+            invalid_claim=CognitoInvalidClaims,
         )
 
         self.client = initialize()
@@ -130,79 +130,6 @@ class CognitoClient(BaseTestCloudAuth):
         self.SCOPE_ACCESS_TOKEN, self.SCOPE_ID_TOKEN = get_cognito_token(
             self.client, self.scope_user, self.password
         )
-
-        @app.get("/")
-        async def secure(payload=Depends(auth)) -> bool:
-            return payload
-
-        @app.get("/no-error/")
-        async def secure_no_error(payload=Depends(auth_no_error)):
-            assert payload is None
-
-        class AccessClaim(BaseModel):
-            sub: str = None
-
-        @app.get("/access/user")
-        async def secure_access_user(
-            payload: AccessClaim = Depends(auth.claim(AccessClaim)),
-        ):
-            assert isinstance(payload, AccessClaim)
-            return payload
-
-        @app.get("/access/user/no-error/")
-        async def secure_access_user_no_error(
-            payload: AccessClaim = Depends(auth_no_error.claim(AccessClaim)),
-        ) -> Optional[AccessClaim]:
-            return payload
-
-        class InvalidAccessClaim(BaseModel):
-            fake_field: str
-
-        @app.get("/access/user/invalid")
-        async def invalid_access_user(payload=Depends(auth.claim(InvalidAccessClaim)),):
-            return payload  # pragma: no cover
-
-        @app.get("/access/user/invalid/no-error/")
-        async def invalid_access_user_no_error(
-            payload=Depends(auth_no_error.claim(InvalidAccessClaim)),
-        ) -> Optional[InvalidAccessClaim]:
-            assert payload is None
-
-        @app.get("/scope/", dependencies=[Depends(auth.scope(self.scope))])
-        async def secure_scope() -> bool:
-            pass
-
-        @app.get("/scope/no-error/")
-        async def secure_scope_no_error(
-            payload=Depends(auth_no_error.scope(self.scope)),
-        ):
-            assert payload is None
-
-        @app.get("/user/", response_model=CognitoClaims)
-        async def secure_user(current_user: CognitoClaims = Depends(get_current_user)):
-            return current_user
-
-        @app.get("/user/no-error/")
-        async def secure_user_no_error(
-            current_user: Optional[CognitoClaims] = Depends(get_current_user_no_error),
-        ):
-            assert current_user is None
-
-        @app.get("/user/invalid/", response_model=CognitoInvalidClaims)
-        async def invalid_userinfo(
-            current_user: CognitoInvalidClaims = Depends(get_invalid_userinfo),
-        ):
-            return current_user  # pragma: no cover
-
-        @app.get("/user/invalid/no-error/")
-        async def invalid_userinfo_no_error(
-            current_user: Optional[CognitoInvalidClaims] = Depends(
-                get_invalid_userinfo_no_error
-            ),
-        ):
-            assert current_user is None
-
-        self.TESTCLIENT = TestClient(app)
 
     def teardown(self):
         delete_cognito_user(self.client, self.user)

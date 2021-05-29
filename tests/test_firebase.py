@@ -3,17 +3,15 @@ import json
 import os
 import tempfile
 from sys import version_info as info
-from typing import Optional
+from typing import Iterable
 
 import firebase_admin
 import requests
-from fastapi import Depends, FastAPI
-from fastapi.testclient import TestClient
 from firebase_admin import auth, credentials
 
 from fastapi_cloudauth import FirebaseCurrentUser
 from fastapi_cloudauth.firebase import FirebaseClaims
-from tests.helpers import BaseTestCloudAuth, decode_token
+from tests.helpers import Auths, BaseTestCloudAuth, decode_token
 
 API_KEY = os.getenv("FIREBASE_APIKEY")
 BASE64_CREDENTIAL = os.getenv("FIREBASE_BASE64_CREDENCIALS")
@@ -71,51 +69,26 @@ def get_tokens(email, password, uid):
 
 
 def get_test_client():
-
-    get_current_user = FirebaseCurrentUser()
-    get_current_user_no_error = FirebaseCurrentUser(auto_error=False)
-
     class FirebaseInvalidClaims(FirebaseClaims):
         fake_field: str
 
     class FirebaseFakeCurrentUser(FirebaseCurrentUser):
         user_info = FirebaseInvalidClaims
 
-    get_invalid_userinfo = FirebaseFakeCurrentUser()
-    get_invalid_userinfo_no_error = FirebaseFakeCurrentUser(auto_error=False)
-
-    app = FastAPI()
-
-    @app.get("/user/", response_model=FirebaseClaims)
-    async def secure_user(current_user: FirebaseClaims = Depends(get_current_user)):
-        return current_user
-
-    @app.get("/user/no-error/")
-    async def secure_user_no_error(
-        current_user: Optional[FirebaseClaims] = Depends(get_current_user_no_error),
-    ):
-        assert current_user is None
-
-        @app.get("/user/invalid/", response_model=FirebaseInvalidClaims)
-        async def invalid_userinfo(
-            current_user: FirebaseInvalidClaims = Depends(get_invalid_userinfo),
-        ):
-            return current_user  # pragma: no cover
-
-        @app.get("/user/invalid/no-error/")
-        async def invalid_userinfo_no_error(
-            current_user: Optional[FirebaseInvalidClaims] = Depends(
-                get_invalid_userinfo_no_error
-            ),
-        ):
-            assert current_user is None
-
-    client = TestClient(app)
-    return client
+    return Auths(
+        protect_auth=None,
+        protect_auth_ne=None,
+        ms_auth=FirebaseCurrentUser(),
+        ms_auth_ne=FirebaseCurrentUser(auto_error=False),
+        invalid_ms_auth=FirebaseFakeCurrentUser(),
+        invalid_ms_auth_ne=FirebaseFakeCurrentUser(auto_error=False),
+        valid_claim=FirebaseClaims,
+        invalid_claim=FirebaseInvalidClaims,
+    )
 
 
 class FirebaseClient(BaseTestCloudAuth):
-    def setup(self):
+    def setup(self, scope: Iterable[str]) -> None:
         """set credentials and create test user"""
         assert_env()
 
@@ -136,7 +109,7 @@ class FirebaseClient(BaseTestCloudAuth):
         )
 
         # set application for testing
-        self.TESTCLIENT = get_test_client()
+        self.TESTAUTH = get_test_client()
 
     def teardown(self):
         """delete test user"""
