@@ -1,13 +1,25 @@
 import os
+from datetime import datetime, timedelta
 from sys import version_info as info
 from typing import Iterable, Optional
 
 import boto3
+import pytest
 from botocore.exceptions import ClientError
+from fastapi.security.http import HTTPAuthorizationCredentials
+from jose import jwt
+from starlette.status import HTTP_401_UNAUTHORIZED
 
 from fastapi_cloudauth import Cognito, CognitoCurrentUser
 from fastapi_cloudauth.cognito import CognitoClaims
-from tests.helpers import Auths, BaseTestCloudAuth, decode_token
+from fastapi_cloudauth.messages import NOT_VERIFIED
+from tests.helpers import (
+    Auths,
+    BaseTestCloudAuth,
+    _assert_verifier,
+    _assert_verifier_no_error,
+    decode_token,
+)
 
 REGION = os.getenv("COGNITO_REGION")
 USERPOOLID = os.getenv("COGNITO_USERPOOLID")
@@ -99,19 +111,32 @@ class CognitoClient(BaseTestCloudAuth):
             user_info = CognitoInvalidClaims
 
         self.TESTAUTH = Auths(
-            protect_auth=Cognito(region=region, userPoolId=userPoolId),
-            protect_auth_ne=Cognito(
-                region=region, userPoolId=userPoolId, auto_error=False
+            protect_auth=Cognito(
+                region=region, userPoolId=userPoolId, client_id=CLIENTID
             ),
-            ms_auth=CognitoCurrentUser(region=region, userPoolId=userPoolId),
+            protect_auth_ne=Cognito(
+                region=region,
+                userPoolId=userPoolId,
+                client_id=CLIENTID,
+                auto_error=False,
+            ),
+            ms_auth=CognitoCurrentUser(
+                region=region, userPoolId=userPoolId, client_id=CLIENTID
+            ),
             ms_auth_ne=CognitoCurrentUser(
-                region=region, userPoolId=userPoolId, auto_error=False
+                region=region,
+                userPoolId=userPoolId,
+                client_id=CLIENTID,
+                auto_error=False,
             ),
             invalid_ms_auth=CognitoFakeCurrentUser(
-                region=region, userPoolId=userPoolId
+                region=region, userPoolId=userPoolId, client_id=CLIENTID
             ),
             invalid_ms_auth_ne=CognitoFakeCurrentUser(
-                region=region, userPoolId=userPoolId, auto_error=False
+                region=region,
+                userPoolId=userPoolId,
+                client_id=CLIENTID,
+                auto_error=False,
             ),
             valid_claim=CognitoClaims,
             invalid_claim=CognitoInvalidClaims,
@@ -147,3 +172,220 @@ class CognitoClient(BaseTestCloudAuth):
         # id token
         id_header, id_payload, *_ = decode_token(self.ID_TOKEN)
         assert id_payload.get("email") == self.user
+
+
+@pytest.mark.unittest
+def test_extra_verify_access_token():
+    """
+    Testing for access token validation:
+    - validate standard claims:
+        - exp: Token expiration
+        - aud: audience should match the app client ID
+        - iss: Token issuer should match your user pool
+        - token_use: should match `id`
+    Ref: https://docs.aws.amazon.com/cognito/latest/developerguide/amazon-cognito-user-pools-using-tokens-verifying-a-jwt.html#amazon-cognito-user-pools-using-tokens-step-3
+    """
+    region = REGION
+    userPoolId = USERPOOLID
+    client_id = "dummyclientid"
+    auth = Cognito(region=region, userPoolId=userPoolId, client_id=client_id)
+    verifier = auth._verifier
+    auth_no_error = Cognito(
+        region=region, userPoolId=userPoolId, client_id=client_id, auto_error=False
+    )
+    verifier_no_error = auth_no_error._verifier
+
+    # correct
+    token = jwt.encode(
+        {
+            "sub": "dummy-ID",
+            "exp": datetime.utcnow() + timedelta(hours=10),
+            "iat": datetime.utcnow() - timedelta(hours=10),
+            "aud": client_id,
+            "iss": f"https://cognito-idp.{region}.amazonaws.com/{userPoolId}",
+            "token_use": "access",
+        },
+        "dummy_secret",
+        headers={"alg": "HS256", "typ": "JWT", "kid": "dummy-kid"},
+    )
+    verifier._verify_claims(HTTPAuthorizationCredentials(scheme="a", credentials=token))
+    verifier_no_error._verify_claims(
+        HTTPAuthorizationCredentials(scheme="a", credentials=token)
+    )
+
+    # invalid exp
+    token = jwt.encode(
+        {
+            "sub": "dummy-ID",
+            "exp": datetime.utcnow() - timedelta(hours=5),
+            "iat": datetime.utcnow() - timedelta(hours=10),
+            "aud": client_id,
+            "iss": f"https://cognito-idp.{region}.amazonaws.com/{userPoolId}",
+            "token_use": "access",
+        },
+        "dummy_secret",
+        headers={"alg": "HS256", "typ": "JWT", "kid": "dummy-kid"},
+    )
+    e = _assert_verifier(token, verifier)
+    assert e.status_code == HTTP_401_UNAUTHORIZED and e.detail == NOT_VERIFIED
+    _assert_verifier_no_error(token, verifier_no_error)
+
+    # invalid aud
+    token = jwt.encode(
+        {
+            "sub": "dummy-ID",
+            "exp": datetime.utcnow() + timedelta(hours=10),
+            "iat": datetime.utcnow() - timedelta(hours=10),
+            "aud": client_id + "incorrect",
+            "iss": f"https://cognito-idp.{region}.amazonaws.com/{userPoolId}",
+            "token_use": "access",
+        },
+        "dummy_secret",
+        headers={"alg": "HS256", "typ": "JWT", "kid": "dummy-kid"},
+    )
+    e = _assert_verifier(token, verifier)
+    assert e.status_code == HTTP_401_UNAUTHORIZED and e.detail == NOT_VERIFIED
+    _assert_verifier_no_error(token, verifier_no_error)
+
+    # invalid iss
+    token = jwt.encode(
+        {
+            "sub": "dummy-ID",
+            "exp": datetime.utcnow() + timedelta(hours=10),
+            "iat": datetime.utcnow() - timedelta(hours=10),
+            "aud": client_id,
+            "iss": "invalid"
+            + f"https://cognito-idp.{region}.amazonaws.com/{userPoolId}-invalid",
+            "token_use": "access",
+        },
+        "dummy_secret",
+        headers={"alg": "HS256", "typ": "JWT", "kid": "dummy-kid"},
+    )
+    e = _assert_verifier(token, verifier)
+    assert e.status_code == HTTP_401_UNAUTHORIZED and e.detail == NOT_VERIFIED
+    _assert_verifier_no_error(token, verifier_no_error)
+
+    # invalid token-use
+    token = jwt.encode(
+        {
+            "sub": "dummy-ID",
+            "exp": datetime.utcnow() + timedelta(hours=10),
+            "iat": datetime.utcnow() - timedelta(hours=10),
+            "aud": client_id,
+            "iss": f"https://cognito-idp.{region}.amazonaws.com/{userPoolId}-invalid",
+            "token_use": "id",
+        },
+        "dummy_secret",
+        headers={"alg": "HS256", "typ": "JWT", "kid": "dummy-kid"},
+    )
+    e = _assert_verifier(token, verifier)
+    assert e.status_code == HTTP_401_UNAUTHORIZED and e.detail == NOT_VERIFIED
+    _assert_verifier_no_error(token, verifier_no_error)
+
+
+@pytest.mark.unittest
+def test_extra_verify_id_token():
+    """
+    Testing for ID token validation:
+    - validate standard claims:
+        - exp: Token expiration
+        - aud: audience should match the app client ID
+        - iss: Token issuer should match your user pool
+        - token_use: should match `id`
+    Ref: https://docs.aws.amazon.com/cognito/latest/developerguide/amazon-cognito-user-pools-using-tokens-verifying-a-jwt.html#amazon-cognito-user-pools-using-tokens-step-3
+    """
+    region = REGION
+    userPoolId = USERPOOLID
+    client_id = "dummyclientid"
+    auth = CognitoCurrentUser(region=region, userPoolId=userPoolId, client_id=client_id)
+    verifier = auth._verifier
+    auth_no_error = CognitoCurrentUser(
+        region=region, userPoolId=userPoolId, client_id=client_id, auto_error=False
+    )
+    verifier_no_error = auth_no_error._verifier
+
+    # correct
+    token = jwt.encode(
+        {
+            "sub": "dummy-ID",
+            "exp": datetime.utcnow() + timedelta(hours=10),
+            "iat": datetime.utcnow() - timedelta(hours=10),
+            "aud": client_id,
+            "iss": f"https://cognito-idp.{region}.amazonaws.com/{userPoolId}",
+            "token_use": "id",
+        },
+        "dummy_secret",
+        headers={"alg": "HS256", "typ": "JWT", "kid": "dummy-kid"},
+    )
+    verifier._verify_claims(HTTPAuthorizationCredentials(scheme="a", credentials=token))
+    verifier_no_error._verify_claims(
+        HTTPAuthorizationCredentials(scheme="a", credentials=token)
+    )
+    # invalid exp
+    token = jwt.encode(
+        {
+            "sub": "dummy-ID",
+            "exp": datetime.utcnow() - timedelta(hours=5),
+            "iat": datetime.utcnow() - timedelta(hours=10),
+            "aud": client_id,
+            "iss": f"https://cognito-idp.{region}.amazonaws.com/{userPoolId}",
+            "token_use": "id",
+        },
+        "dummy_secret",
+        headers={"alg": "HS256", "typ": "JWT", "kid": "dummy-kid"},
+    )
+    e = _assert_verifier(token, verifier)
+    assert e.status_code == HTTP_401_UNAUTHORIZED and e.detail == NOT_VERIFIED
+    _assert_verifier_no_error(token, verifier_no_error)
+
+    # invalid aud
+    token = jwt.encode(
+        {
+            "sub": "dummy-ID",
+            "exp": datetime.utcnow() + timedelta(hours=10),
+            "iat": datetime.utcnow() - timedelta(hours=10),
+            "aud": client_id + "incorrect",
+            "iss": f"https://cognito-idp.{region}.amazonaws.com/{userPoolId}",
+            "token_use": "id",
+        },
+        "dummy_secret",
+        headers={"alg": "HS256", "typ": "JWT", "kid": "dummy-kid"},
+    )
+    e = _assert_verifier(token, verifier)
+    assert e.status_code == HTTP_401_UNAUTHORIZED and e.detail == NOT_VERIFIED
+    _assert_verifier_no_error(token, verifier_no_error)
+
+    # invalid iss
+    token = jwt.encode(
+        {
+            "sub": "dummy-ID",
+            "exp": datetime.utcnow() + timedelta(hours=10),
+            "iat": datetime.utcnow() - timedelta(hours=10),
+            "aud": client_id,
+            "iss": "invalid"
+            + f"https://cognito-idp.{region}.amazonaws.com/{userPoolId}-invalid",
+            "token_use": "id",
+        },
+        "dummy_secret",
+        headers={"alg": "HS256", "typ": "JWT", "kid": "dummy-kid"},
+    )
+    e = _assert_verifier(token, verifier)
+    assert e.status_code == HTTP_401_UNAUTHORIZED and e.detail == NOT_VERIFIED
+    _assert_verifier_no_error(token, verifier_no_error)
+
+    # invalid token-use
+    token = jwt.encode(
+        {
+            "sub": "dummy-ID",
+            "exp": datetime.utcnow() + timedelta(hours=10),
+            "iat": datetime.utcnow() - timedelta(hours=10),
+            "aud": client_id,
+            "iss": f"https://cognito-idp.{region}.amazonaws.com/{userPoolId}",
+            "token_use": "access",
+        },
+        "dummy_secret",
+        headers={"alg": "HS256", "typ": "JWT", "kid": "dummy-kid"},
+    )
+    e = _assert_verifier(token, verifier)
+    assert e.status_code == HTTP_401_UNAUTHORIZED and e.detail == NOT_VERIFIED
+    _assert_verifier_no_error(token, verifier_no_error)
