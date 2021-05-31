@@ -35,7 +35,7 @@ class Cognito(ScopedAuth):
             extra=CognitoExtraVerifier(
                 client_id=client_id,
                 issuer=f"https://cognito-idp.{region}.amazonaws.com/{userPoolId}",
-                token_use={"access",},
+                token_use={"access"},
             ),
         )
 
@@ -65,7 +65,7 @@ class CognitoCurrentUser(UserInfoAuth):
             extra=CognitoExtraVerifier(
                 client_id=client_id,
                 issuer=f"https://cognito-idp.{region}.amazonaws.com/{userPoolId}",
-                token_use={"id",},
+                token_use={"id"},
             ),
             *args,
             **kwargs,
