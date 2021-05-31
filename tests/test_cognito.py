@@ -380,7 +380,7 @@ def test_extra_verify_id_token():
             "exp": datetime.utcnow() + timedelta(hours=10),
             "iat": datetime.utcnow() - timedelta(hours=10),
             "aud": client_id,
-            "iss": f"https://cognito-idp.{region}.amazonaws.com/{userPoolId}-invalid",
+            "iss": f"https://cognito-idp.{region}.amazonaws.com/{userPoolId}",
             "token_use": "access",
         },
         "dummy_secret",
