@@ -71,7 +71,9 @@ def secure_access(current_user: AccessUser = Depends(auth.claim(AccessUser))):
 
 
 get_current_user = CognitoCurrentUser(
-    region=os.environ["REGION"], userPoolId=os.environ["USERPOOLID"]
+    region=os.environ["REGION"], 
+    userPoolId=os.environ["USERPOOLID"],
+    client_id=os.environ["APPCLIENTID"]
 )
 
 
@@ -177,7 +179,7 @@ from fastapi_cloudauth.firebase import FirebaseCurrentUser, FirebaseClaims
 app = FastAPI()
 
 get_current_user = FirebaseCurrentUser(
-    project_id=os.environ["PROJECT_ID]
+    project_id=os.environ["PROJECT_ID"]
 )
 
 
