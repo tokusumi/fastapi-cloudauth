@@ -9,7 +9,7 @@ from auth0.v3.authentication import GetToken
 from auth0.v3.management import Auth0 as Auth0sdk
 from fastapi.security.http import HTTPAuthorizationCredentials
 from jose import jwt
-from starlette.status import HTTP_403_FORBIDDEN
+from starlette.status import HTTP_401_UNAUTHORIZED
 
 from fastapi_cloudauth.auth0 import Auth0, Auth0Claims, Auth0CurrentUser
 from fastapi_cloudauth.messages import NOT_VERIFIED
@@ -301,7 +301,7 @@ def test_extra_verify_access_token():
         headers={"alg": "HS256", "typ": "JWT", "kid": "dummy-kid"},
     )
     e = _assert_verifier(token, verifier)
-    assert e.status_code == HTTP_403_FORBIDDEN and e.detail == NOT_VERIFIED
+    assert e.status_code == HTTP_401_UNAUTHORIZED and e.detail == NOT_VERIFIED
     _assert_verifier_no_error(token, verifier_no_error)
 
     # invalid expiration
@@ -317,7 +317,7 @@ def test_extra_verify_access_token():
         headers={"alg": "HS256", "typ": "JWT", "kid": "dummy-kid"},
     )
     e = _assert_verifier(token, verifier)
-    assert e.status_code == HTTP_403_FORBIDDEN and e.detail == NOT_VERIFIED
+    assert e.status_code == HTTP_401_UNAUTHORIZED and e.detail == NOT_VERIFIED
     _assert_verifier_no_error(token, verifier_no_error)
 
     # Testing for access token specific verification
@@ -335,7 +335,7 @@ def test_extra_verify_access_token():
         headers={"alg": "HS256", "typ": "JWT", "kid": "dummy-kid"},
     )
     e = _assert_verifier(token, verifier)
-    assert e.status_code == HTTP_403_FORBIDDEN and e.detail == NOT_VERIFIED
+    assert e.status_code == HTTP_401_UNAUTHORIZED and e.detail == NOT_VERIFIED
     _assert_verifier_no_error(token, verifier_no_error)
 
 
@@ -394,7 +394,7 @@ def test_extra_verify_id_token():
         headers={"alg": "HS256", "typ": "JWT", "kid": "dummy-kid"},
     )
     e = _assert_verifier(token, verifier)
-    assert e.status_code == HTTP_403_FORBIDDEN and e.detail == NOT_VERIFIED
+    assert e.status_code == HTTP_401_UNAUTHORIZED and e.detail == NOT_VERIFIED
     _assert_verifier_no_error(token, verifier_no_error)
 
     # invalid expiration
@@ -410,7 +410,7 @@ def test_extra_verify_id_token():
         headers={"alg": "HS256", "typ": "JWT", "kid": "dummy-kid"},
     )
     e = _assert_verifier(token, verifier)
-    assert e.status_code == HTTP_403_FORBIDDEN and e.detail == NOT_VERIFIED
+    assert e.status_code == HTTP_401_UNAUTHORIZED and e.detail == NOT_VERIFIED
     _assert_verifier_no_error(token, verifier_no_error)
 
     # Testing for ID token specific verification
@@ -428,7 +428,7 @@ def test_extra_verify_id_token():
         headers={"alg": "HS256", "typ": "JWT", "kid": "dummy-kid"},
     )
     e = _assert_verifier(token, verifier)
-    assert e.status_code == HTTP_403_FORBIDDEN and e.detail == NOT_VERIFIED
+    assert e.status_code == HTTP_401_UNAUTHORIZED and e.detail == NOT_VERIFIED
     _assert_verifier_no_error(token, verifier_no_error)
 
     # invalid nonce
@@ -445,5 +445,5 @@ def test_extra_verify_id_token():
         headers={"alg": "HS256", "typ": "JWT", "kid": "dummy-kid"},
     )
     e = _assert_verifier(token, verifier)
-    assert e.status_code == HTTP_403_FORBIDDEN and e.detail == NOT_VERIFIED
+    assert e.status_code == HTTP_401_UNAUTHORIZED and e.detail == NOT_VERIFIED
     _assert_verifier_no_error(token, verifier_no_error)

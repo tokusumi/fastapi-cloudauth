@@ -109,7 +109,7 @@ class JWKsVerifier(Verifier):
         except JWTError as e:
             if self.auto_error:
                 raise HTTPException(
-                    status_code=status.HTTP_403_FORBIDDEN, detail=NOT_AUTHENTICATED
+                    status_code=status.HTTP_401_UNAUTHORIZED, detail=NOT_AUTHENTICATED
                 ) from e
             else:
                 return None
@@ -118,7 +118,7 @@ class JWKsVerifier(Verifier):
         if not kid:
             if self.auto_error:
                 raise HTTPException(
-                    status_code=status.HTTP_403_FORBIDDEN, detail=NOT_AUTHENTICATED
+                    status_code=status.HTTP_401_UNAUTHORIZED, detail=NOT_AUTHENTICATED
                 )
             else:
                 return None
@@ -126,7 +126,7 @@ class JWKsVerifier(Verifier):
         if not publickey:
             if self.auto_error:
                 raise HTTPException(
-                    status_code=status.HTTP_403_FORBIDDEN, detail=NO_PUBLICKEY,
+                    status_code=status.HTTP_401_UNAUTHORIZED, detail=NO_PUBLICKEY,
                 )
             else:
                 return None
@@ -146,19 +146,19 @@ class JWKsVerifier(Verifier):
         except jwt.ExpiredSignatureError as e:
             if self.auto_error:
                 raise HTTPException(
-                    status_code=status.HTTP_403_FORBIDDEN, detail=NOT_VERIFIED
+                    status_code=status.HTTP_401_UNAUTHORIZED, detail=NOT_VERIFIED
                 ) from e
             return False
         except jwt.JWTClaimsError as e:
             if self.auto_error:
                 raise HTTPException(
-                    status_code=status.HTTP_403_FORBIDDEN, detail=NOT_VERIFIED
+                    status_code=status.HTTP_401_UNAUTHORIZED, detail=NOT_VERIFIED
                 ) from e
             return False
         except JWTError as e:
             if self.auto_error:
                 raise HTTPException(
-                    status_code=status.HTTP_403_FORBIDDEN, detail=NOT_AUTHENTICATED
+                    status_code=status.HTTP_401_UNAUTHORIZED, detail=NOT_AUTHENTICATED
                 ) from e
             else:
                 return False
@@ -172,7 +172,7 @@ class JWKsVerifier(Verifier):
             if now < iat:
                 if self.auto_error:
                     raise HTTPException(
-                        status_code=status.HTTP_403_FORBIDDEN, detail=NOT_VERIFIED
+                        status_code=status.HTTP_401_UNAUTHORIZED, detail=NOT_VERIFIED
                     )
                 return False
 
@@ -197,7 +197,7 @@ class JWKsVerifier(Verifier):
         if not is_verified:
             if self.auto_error:
                 raise HTTPException(
-                    status_code=status.HTTP_403_FORBIDDEN, detail=NOT_VERIFIED
+                    status_code=status.HTTP_401_UNAUTHORIZED, detail=NOT_VERIFIED
                 )
             return False
         # check the standard claims
@@ -248,7 +248,7 @@ class ScopedJWKsVerifier(JWKsVerifier):
         except JWTError as e:
             if self.auto_error:
                 raise HTTPException(
-                    status_code=status.HTTP_403_FORBIDDEN, detail=NOT_AUTHENTICATED
+                    status_code=status.HTTP_401_UNAUTHORIZED, detail=NOT_AUTHENTICATED
                 ) from e
             else:
                 return False

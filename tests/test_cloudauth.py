@@ -132,12 +132,14 @@ class AccessTokenTestCase(BaseTestCase):
             assert value, f"{response.content} failed to parse"
         return response
 
-    def failure_case(self, path: str, token: str = "", detail: str = "") -> Response:
+    def failure_case(
+        self, path: str, token: str = "", detail: str = "", status=401
+    ) -> Response:
         return assert_get_response(
             client=self.client,
             endpoint=path,
             token=token,
-            status_code=403,
+            status_code=status,
             detail=detail,
         )
 
@@ -185,7 +187,9 @@ class AccessTokenTestCase(BaseTestCase):
         self.success_case("/scope/", self.SCOPE_ACCESS_TOKEN)
 
     def test_invalid_scope(self):
-        self.failure_case("/scope/", self.ACCESS_TOKEN, detail=SCOPE_NOT_MATCHED)
+        self.failure_case(
+            "/scope/", self.ACCESS_TOKEN, detail=SCOPE_NOT_MATCHED, status=403
+        )
         self.success_case("/scope/no-error/", self.ACCESS_TOKEN)
 
     def test_malformed_token_for_scope(self):
@@ -253,12 +257,14 @@ class IdTokenTestCase(BaseTestCase):
             assert value, f"{response.content} failed to parse"
         return response
 
-    def failure_case(self, path: str, token: str = "", detail: str = "") -> Response:
+    def failure_case(
+        self, path: str, token: str = "", detail: str = "", status=401
+    ) -> Response:
         return assert_get_response(
             client=self.client,
             endpoint=path,
             token=token,
-            status_code=403,
+            status_code=status,
             detail=detail,
         )
 

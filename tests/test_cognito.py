@@ -8,7 +8,7 @@ import pytest
 from botocore.exceptions import ClientError
 from fastapi.security.http import HTTPAuthorizationCredentials
 from jose import jwt
-from starlette.status import HTTP_403_FORBIDDEN
+from starlette.status import HTTP_401_UNAUTHORIZED, HTTP_401_UNAUTHORIZED
 
 from fastapi_cloudauth import Cognito, CognitoCurrentUser
 from fastapi_cloudauth.cognito import CognitoClaims
@@ -227,7 +227,7 @@ def test_extra_verify_access_token():
         headers={"alg": "HS256", "typ": "JWT", "kid": "dummy-kid"},
     )
     e = _assert_verifier(token, verifier)
-    assert e.status_code == HTTP_403_FORBIDDEN and e.detail == NOT_VERIFIED
+    assert e.status_code == HTTP_401_UNAUTHORIZED and e.detail == NOT_VERIFIED
     _assert_verifier_no_error(token, verifier_no_error)
 
     # invalid aud
@@ -244,7 +244,7 @@ def test_extra_verify_access_token():
         headers={"alg": "HS256", "typ": "JWT", "kid": "dummy-kid"},
     )
     e = _assert_verifier(token, verifier)
-    assert e.status_code == HTTP_403_FORBIDDEN and e.detail == NOT_VERIFIED
+    assert e.status_code == HTTP_401_UNAUTHORIZED and e.detail == NOT_VERIFIED
     _assert_verifier_no_error(token, verifier_no_error)
 
     # invalid iss
@@ -262,7 +262,7 @@ def test_extra_verify_access_token():
         headers={"alg": "HS256", "typ": "JWT", "kid": "dummy-kid"},
     )
     e = _assert_verifier(token, verifier)
-    assert e.status_code == HTTP_403_FORBIDDEN and e.detail == NOT_VERIFIED
+    assert e.status_code == HTTP_401_UNAUTHORIZED and e.detail == NOT_VERIFIED
     _assert_verifier_no_error(token, verifier_no_error)
 
     # invalid token-use
@@ -279,7 +279,7 @@ def test_extra_verify_access_token():
         headers={"alg": "HS256", "typ": "JWT", "kid": "dummy-kid"},
     )
     e = _assert_verifier(token, verifier)
-    assert e.status_code == HTTP_403_FORBIDDEN and e.detail == NOT_VERIFIED
+    assert e.status_code == HTTP_401_UNAUTHORIZED and e.detail == NOT_VERIFIED
     _assert_verifier_no_error(token, verifier_no_error)
 
 
@@ -335,7 +335,7 @@ def test_extra_verify_id_token():
         headers={"alg": "HS256", "typ": "JWT", "kid": "dummy-kid"},
     )
     e = _assert_verifier(token, verifier)
-    assert e.status_code == HTTP_403_FORBIDDEN and e.detail == NOT_VERIFIED
+    assert e.status_code == HTTP_401_UNAUTHORIZED and e.detail == NOT_VERIFIED
     _assert_verifier_no_error(token, verifier_no_error)
 
     # invalid aud
@@ -352,7 +352,7 @@ def test_extra_verify_id_token():
         headers={"alg": "HS256", "typ": "JWT", "kid": "dummy-kid"},
     )
     e = _assert_verifier(token, verifier)
-    assert e.status_code == HTTP_403_FORBIDDEN and e.detail == NOT_VERIFIED
+    assert e.status_code == HTTP_401_UNAUTHORIZED and e.detail == NOT_VERIFIED
     _assert_verifier_no_error(token, verifier_no_error)
 
     # invalid iss
@@ -370,7 +370,7 @@ def test_extra_verify_id_token():
         headers={"alg": "HS256", "typ": "JWT", "kid": "dummy-kid"},
     )
     e = _assert_verifier(token, verifier)
-    assert e.status_code == HTTP_403_FORBIDDEN and e.detail == NOT_VERIFIED
+    assert e.status_code == HTTP_401_UNAUTHORIZED and e.detail == NOT_VERIFIED
     _assert_verifier_no_error(token, verifier_no_error)
 
     # invalid token-use
@@ -387,5 +387,5 @@ def test_extra_verify_id_token():
         headers={"alg": "HS256", "typ": "JWT", "kid": "dummy-kid"},
     )
     e = _assert_verifier(token, verifier)
-    assert e.status_code == HTTP_403_FORBIDDEN and e.detail == NOT_VERIFIED
+    assert e.status_code == HTTP_401_UNAUTHORIZED and e.detail == NOT_VERIFIED
     _assert_verifier_no_error(token, verifier_no_error)

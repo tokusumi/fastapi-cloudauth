@@ -13,7 +13,7 @@ import requests
 from fastapi.security.http import HTTPAuthorizationCredentials
 from firebase_admin import auth, credentials
 from jose import jwt
-from starlette.status import HTTP_403_FORBIDDEN
+from starlette.status import HTTP_401_UNAUTHORIZED
 
 from fastapi_cloudauth import FirebaseCurrentUser
 from fastapi_cloudauth.firebase import FirebaseClaims
@@ -199,7 +199,7 @@ def test_extra_verify_token():
         headers={"alg": "HS256", "typ": "JWT", "kid": "dummy-kid"},
     )
     e = _assert_verifier(token, verifier)
-    assert e.status_code == HTTP_403_FORBIDDEN and e.detail == NOT_VERIFIED
+    assert e.status_code == HTTP_401_UNAUTHORIZED and e.detail == NOT_VERIFIED
     _assert_verifier_no_error(token, verifier_no_error)
 
     # invalid iat
@@ -218,7 +218,7 @@ def test_extra_verify_token():
         headers={"alg": "HS256", "typ": "JWT", "kid": "dummy-kid"},
     )
     e = _assert_verifier(token, verifier)
-    assert e.status_code == HTTP_403_FORBIDDEN and e.detail == NOT_VERIFIED
+    assert e.status_code == HTTP_401_UNAUTHORIZED and e.detail == NOT_VERIFIED
     _assert_verifier_no_error(token, verifier_no_error)
 
     # invalid aud
@@ -237,7 +237,7 @@ def test_extra_verify_token():
         headers={"alg": "HS256", "typ": "JWT", "kid": "dummy-kid"},
     )
     e = _assert_verifier(token, verifier)
-    assert e.status_code == HTTP_403_FORBIDDEN and e.detail == NOT_VERIFIED
+    assert e.status_code == HTTP_401_UNAUTHORIZED and e.detail == NOT_VERIFIED
     _assert_verifier_no_error(token, verifier_no_error)
 
     # invalid iss
@@ -256,7 +256,7 @@ def test_extra_verify_token():
         headers={"alg": "HS256", "typ": "JWT", "kid": "dummy-kid"},
     )
     e = _assert_verifier(token, verifier)
-    assert e.status_code == HTTP_403_FORBIDDEN and e.detail == NOT_VERIFIED
+    assert e.status_code == HTTP_401_UNAUTHORIZED and e.detail == NOT_VERIFIED
     _assert_verifier_no_error(token, verifier_no_error)
 
     # invalid sub
@@ -275,7 +275,7 @@ def test_extra_verify_token():
         headers={"alg": "HS256", "typ": "JWT", "kid": "dummy-kid"},
     )
     e = _assert_verifier(token, verifier)
-    assert e.status_code == HTTP_403_FORBIDDEN and e.detail == NOT_VERIFIED
+    assert e.status_code == HTTP_401_UNAUTHORIZED and e.detail == NOT_VERIFIED
     _assert_verifier_no_error(token, verifier_no_error)
 
     # invalid auth_time
@@ -294,5 +294,5 @@ def test_extra_verify_token():
         headers={"alg": "HS256", "typ": "JWT", "kid": "dummy-kid"},
     )
     e = _assert_verifier(token, verifier)
-    assert e.status_code == HTTP_403_FORBIDDEN and e.detail == NOT_VERIFIED
+    assert e.status_code == HTTP_401_UNAUTHORIZED and e.detail == NOT_VERIFIED
     _assert_verifier_no_error(token, verifier_no_error)

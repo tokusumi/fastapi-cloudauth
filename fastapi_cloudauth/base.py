@@ -70,7 +70,7 @@ class CloudAuth(ABC):
         if http_auth is None:
             if self.verifier.auto_error:
                 raise HTTPException(
-                    status_code=status.HTTP_403_FORBIDDEN, detail=NOT_AUTHENTICATED
+                    status_code=status.HTTP_401_UNAUTHORIZED, detail=NOT_AUTHENTICATED
                 )
             else:
                 return None
@@ -168,7 +168,8 @@ class UserInfoAuth(CloudAuth):
         except ValidationError:
             if self.auto_error:
                 raise HTTPException(
-                    status_code=status.HTTP_403_FORBIDDEN, detail=NOT_VALIDATED_CLAIMS,
+                    status_code=status.HTTP_401_UNAUTHORIZED,
+                    detail=NOT_VALIDATED_CLAIMS,
                 )
             else:
                 return None
@@ -302,7 +303,8 @@ class ScopedAuth(CloudAuth):
         except ValidationError:
             if self.auto_error:
                 raise HTTPException(
-                    status_code=status.HTTP_403_FORBIDDEN, detail=NOT_VALIDATED_CLAIMS,
+                    status_code=status.HTTP_401_UNAUTHORIZED,
+                    detail=NOT_VALIDATED_CLAIMS,
                 )
             else:
                 return None

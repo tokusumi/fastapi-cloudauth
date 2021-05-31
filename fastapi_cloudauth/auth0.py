@@ -94,7 +94,7 @@ class Auth0ExtraVerifier(ExtraVerifier):
             if nonce != self._nonce:
                 if auto_error:
                     raise HTTPException(
-                        status_code=status.HTTP_403_FORBIDDEN, detail=NOT_VERIFIED
+                        status_code=status.HTTP_401_UNAUTHORIZED, detail=NOT_VERIFIED
                     )
                 return False
         except KeyError:

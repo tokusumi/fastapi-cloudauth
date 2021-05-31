@@ -4,7 +4,7 @@ import pytest
 from fastapi import HTTPException
 from fastapi.security import HTTPAuthorizationCredentials
 from jose import jwt
-from starlette.status import HTTP_403_FORBIDDEN
+from starlette.status import HTTP_401_UNAUTHORIZED
 
 from fastapi_cloudauth import messages
 from fastapi_cloudauth.verification import JWKS, JWKsVerifier, ScopedJWKsVerifier
@@ -70,7 +70,7 @@ def test_verify_token():
         headers={"alg": "HS256", "typ": "JWT", "kid": "dummy-kid"},
     )
     e = _assert_verifier(token, verifier)
-    assert e.status_code == HTTP_403_FORBIDDEN and e.detail == messages.NOT_VERIFIED
+    assert e.status_code == HTTP_401_UNAUTHORIZED and e.detail == messages.NOT_VERIFIED
     _assert_verifier_no_error(token, verifier_no_error)
 
     # token created at future
@@ -84,7 +84,7 @@ def test_verify_token():
         headers={"alg": "HS256", "typ": "JWT", "kid": "dummy-kid"},
     )
     e = _assert_verifier(token, verifier)
-    assert e.status_code == HTTP_403_FORBIDDEN and e.detail == messages.NOT_VERIFIED
+    assert e.status_code == HTTP_401_UNAUTHORIZED and e.detail == messages.NOT_VERIFIED
     _assert_verifier_no_error(token, verifier_no_error)
 
     # invalid format
@@ -100,6 +100,7 @@ def test_verify_token():
     token = token.split(".")[0]
     e = _assert_verifier(token, verifier)
     assert (
-        e.status_code == HTTP_403_FORBIDDEN and e.detail == messages.NOT_AUTHENTICATED
+        e.status_code == HTTP_401_UNAUTHORIZED
+        and e.detail == messages.NOT_AUTHENTICATED
     )
     _assert_verifier_no_error(token, verifier_no_error)
