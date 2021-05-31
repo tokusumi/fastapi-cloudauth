@@ -1,6 +1,8 @@
 from abc import ABC, abstractmethod
+from calendar import timegm
 from copy import deepcopy
-from typing import Any, Dict, Optional
+from datetime import datetime
+from typing import Any, Dict, List, Optional, Union
 
 import requests
 from fastapi import HTTPException
@@ -32,6 +34,12 @@ class Verifier(ABC):
     @abstractmethod
     def clone(self, instance: "Verifier") -> "Verifier":
         """create clone instanse"""
+        ...  # pragma: no cover
+
+
+class ExtraVerifier(ABC):
+    @abstractmethod
+    def __call__(self, claims: Dict[str, str], auto_error: bool = True) -> bool:
         ...  # pragma: no cover
 
 
@@ -67,13 +75,23 @@ class JWKS:
 
 class JWKsVerifier(Verifier):
     def __init__(
-        self, jwks: JWKS, auto_error: bool = True, *args: Any, **kwargs: Any
+        self,
+        jwks: JWKS,
+        audience: Optional[Union[str, List[str]]] = None,
+        issuer: Optional[str] = None,
+        auto_error: bool = True,
+        *args: Any,
+        extra: Optional[ExtraVerifier] = None,
+        **kwargs: Any
     ) -> None:
         """
         auto-error: if False, return payload as b'null' for invalid token.
         """
         self._jwks_to_key = jwks.keys
         self._auto_error = auto_error
+        self._extra_verifier = extra
+        self._aud = audience
+        self._iss = issuer
 
     @property
     def auto_error(self) -> bool:
@@ -114,7 +132,60 @@ class JWKsVerifier(Verifier):
                 return None
         return publickey
 
+    def _verify_claims(self, http_auth: HTTPAuthorizationCredentials) -> bool:
+        is_verified = False
+        try:
+            # check the expiration, issuer
+            is_verified = jwt.decode(
+                http_auth.credentials,
+                "",
+                audience=self._aud,
+                issuer=self._iss,
+                options={"verify_signature": False, "verify_sub": False,},  # done
+            )
+        except jwt.ExpiredSignatureError as e:
+            if self.auto_error:
+                raise HTTPException(
+                    status_code=status.HTTP_403_FORBIDDEN, detail=NOT_VERIFIED
+                ) from e
+            return False
+        except jwt.JWTClaimsError as e:
+            if self.auto_error:
+                raise HTTPException(
+                    status_code=status.HTTP_403_FORBIDDEN, detail=NOT_VERIFIED
+                ) from e
+            return False
+        except JWTError as e:
+            if self.auto_error:
+                raise HTTPException(
+                    status_code=status.HTTP_403_FORBIDDEN, detail=NOT_AUTHENTICATED
+                ) from e
+            else:
+                return False
+
+        claims = jwt.get_unverified_claims(http_auth.credentials)
+
+        # iat validation
+        try:
+            iat = int(claims["iat"])
+            now = timegm(datetime.utcnow().utctimetuple())
+            if now < iat:
+                if self.auto_error:
+                    raise HTTPException(
+                        status_code=status.HTTP_403_FORBIDDEN, detail=NOT_VERIFIED
+                    )
+                return False
+        except ValueError:
+            pass
+
+        if self._extra_verifier:
+            # check extra claims validation
+            is_verified = self._extra_verifier(claims=claims)
+
+        return is_verified
+
     def verify_token(self, http_auth: HTTPAuthorizationCredentials) -> bool:
+        # check the signature
         public_key = self._get_publickey(http_auth)
         if not public_key:
             # error handling is included in self.get_publickey
@@ -123,12 +194,14 @@ class JWKsVerifier(Verifier):
         message, encoded_sig = http_auth.credentials.rsplit(".", 1)
         decoded_sig = base64url_decode(encoded_sig.encode())
         is_verified: bool = public_key.verify(message.encode(), decoded_sig)
-
         if not is_verified:
             if self.auto_error:
                 raise HTTPException(
                     status_code=status.HTTP_403_FORBIDDEN, detail=NOT_VERIFIED
                 )
+            return False
+        # check the standard claims
+        is_verified = self._verify_claims(http_auth)
 
         return is_verified
 
@@ -145,16 +218,21 @@ class ScopedJWKsVerifier(JWKsVerifier):
     def __init__(
         self,
         jwks: JWKS,
+        audience: Optional[Union[str, List[str]]] = None,
+        issuer: Optional[str] = None,
         scope_name: Optional[str] = None,
         scope_key: Optional[str] = None,
         auto_error: bool = True,
+        extra: Optional[ExtraVerifier] = None,
         *args: Any,
         **kwargs: Any
     ) -> None:
         """
         auto-error: if False, return payload as b'null' for invalid token.
         """
-        super().__init__(jwks, auto_error=auto_error)
+        super().__init__(
+            jwks, auto_error=auto_error, extra=extra, audience=audience, issuer=issuer
+        )
         self.scope_name = scope_name
         self.scope_key = scope_key
 

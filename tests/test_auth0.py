@@ -1,14 +1,19 @@
 import os
+from datetime import datetime, timedelta
 from sys import version_info as info
 from typing import Iterable, Optional
 
+import pytest
 import requests
 from auth0.v3.authentication import GetToken
 from auth0.v3.management import Auth0 as Auth0sdk
+from fastapi.security.http import HTTPAuthorizationCredentials
 from jose import jwt
+from starlette.status import HTTP_403_FORBIDDEN
 
 from fastapi_cloudauth.auth0 import Auth0, Auth0Claims, Auth0CurrentUser
-from tests.helpers import Auths, BaseTestCloudAuth, decode_token
+from fastapi_cloudauth.messages import NOT_VERIFIED
+from tests.helpers import Auths, BaseTestCloudAuth, _assert_verifier, decode_token
 
 DOMAIN = os.getenv("AUTH0_DOMAIN")
 MGMT_CLIENTID = os.getenv("AUTH0_MGMT_CLIENTID")
@@ -204,13 +209,18 @@ class Auth0Client(BaseTestCloudAuth):
         class Auth0FakeCurrentUser(Auth0CurrentUser):
             user_info = Auth0InvalidClaims
 
+        assert DOMAIN and AUDIENCE and CLIENTID
         self.TESTAUTH = Auths(
-            protect_auth=Auth0(domain=DOMAIN),
-            protect_auth_ne=Auth0(domain=DOMAIN, auto_error=False),
-            ms_auth=Auth0CurrentUser(domain=DOMAIN),
-            ms_auth_ne=Auth0CurrentUser(domain=DOMAIN, auto_error=False),
-            invalid_ms_auth=Auth0FakeCurrentUser(domain=DOMAIN),
-            invalid_ms_auth_ne=Auth0FakeCurrentUser(domain=DOMAIN, auto_error=False),
+            protect_auth=Auth0(domain=DOMAIN, customAPI=AUDIENCE),
+            protect_auth_ne=Auth0(domain=DOMAIN, customAPI=AUDIENCE, auto_error=False),
+            ms_auth=Auth0CurrentUser(domain=DOMAIN, client_id=CLIENTID),
+            ms_auth_ne=Auth0CurrentUser(
+                domain=DOMAIN, client_id=CLIENTID, auto_error=False
+            ),
+            invalid_ms_auth=Auth0FakeCurrentUser(domain=DOMAIN, client_id=CLIENTID),
+            invalid_ms_auth_ne=Auth0FakeCurrentUser(
+                domain=DOMAIN, client_id=CLIENTID, auto_error=False
+            ),
             valid_claim=Auth0Claims,
             invalid_claim=Auth0InvalidClaims,
         )
@@ -234,3 +244,180 @@ class Auth0Client(BaseTestCloudAuth):
         id_header, id_payload, *_ = decode_token(self.ID_TOKEN)
         assert id_header.get("typ") == "JWT"
         assert id_payload.get("email") == self.username
+
+
+@pytest.mark.unittest
+def test_extra_verify_access_token():
+    """
+    Testing for access token validation:
+    - validate standard claims: Token expiration (exp) and Token issuer (iss)
+    - verify token audience (aud) claims
+    Ref: https://auth0.com/docs/tokens/access-tokens/validate-access-tokens
+    """
+    domain = DOMAIN
+    customAPI = "https://dummy-domain"
+    issuer = "https://dummy"
+    auth = Auth0(domain=domain, customAPI=customAPI, issuer=issuer)
+    verifier = auth._verifier
+
+    # correct
+    token = jwt.encode(
+        {
+            "sub": "dummy-ID",
+            "exp": datetime.utcnow() + timedelta(hours=10),
+            "iat": datetime.utcnow() - timedelta(hours=10),
+            "aud": customAPI,
+            "iss": issuer,
+        },
+        "dummy_secret",
+        headers={"alg": "HS256", "typ": "JWT", "kid": "dummy-kid"},
+    )
+    verifier._verify_claims(HTTPAuthorizationCredentials(scheme="a", credentials=token))
+
+    # Testing for validation of JWT standard claims
+
+    # invalid iss
+    token = jwt.encode(
+        {
+            "sub": "dummy-ID",
+            "exp": datetime.utcnow() + timedelta(hours=10),
+            "iat": datetime.utcnow() - timedelta(hours=10),
+            "aud": customAPI,
+            "iss": "invalid" + issuer,
+        },
+        "dummy_secret",
+        headers={"alg": "HS256", "typ": "JWT", "kid": "dummy-kid"},
+    )
+    e = _assert_verifier(token, verifier)
+    assert e.status_code == HTTP_403_FORBIDDEN and e.detail == NOT_VERIFIED
+
+    # invalid expiration
+    token = jwt.encode(
+        {
+            "sub": "dummy-ID",
+            "exp": datetime.utcnow() - timedelta(hours=5),
+            "iat": datetime.utcnow() - timedelta(hours=10),
+            "aud": customAPI,
+            "iss": issuer,
+        },
+        "dummy_secret",
+        headers={"alg": "HS256", "typ": "JWT", "kid": "dummy-kid"},
+    )
+    e = _assert_verifier(token, verifier)
+    assert e.status_code == HTTP_403_FORBIDDEN and e.detail == NOT_VERIFIED
+
+    # Testing for access token specific verification
+    # invalid aud
+    # aud must be same as custom API
+    token = jwt.encode(
+        {
+            "sub": "dummy-ID",
+            "exp": datetime.utcnow() + timedelta(hours=10),
+            "iat": datetime.utcnow() - timedelta(hours=10),
+            "aud": customAPI + "incorrect",
+            "iss": issuer,
+        },
+        "dummy_secret",
+        headers={"alg": "HS256", "typ": "JWT", "kid": "dummy-kid"},
+    )
+    e = _assert_verifier(token, verifier)
+    assert e.status_code == HTTP_403_FORBIDDEN and e.detail == NOT_VERIFIED
+
+
+@pytest.mark.unittest
+def test_extra_verify_id_token():
+    """
+    Testing for ID token validation:
+    - validate standard claims: Token expiration (exp) and Token issuer (iss)
+    - verify token audience (aud) claims: same as Client ID
+    - verify Nonce
+    Ref: https://auth0.com/docs/tokens/id-tokens/validate-id-tokens
+    """
+    domain = DOMAIN
+    client_id = "dummy-client-ID"
+    nonce = "dummy-nonce"
+    issuer = "https://dummy"
+    auth = Auth0CurrentUser(
+        domain=domain, client_id=client_id, nonce=nonce, issuer=issuer
+    )
+    verifier = auth._verifier
+
+    # correct
+    token = jwt.encode(
+        {
+            "sub": "dummy-ID",
+            "exp": datetime.utcnow() + timedelta(hours=10),
+            "iat": datetime.utcnow() - timedelta(hours=10),
+            "aud": client_id,
+            "nonce": nonce,
+            "iss": issuer,
+        },
+        "dummy_secret",
+        headers={"alg": "HS256", "typ": "JWT", "kid": "dummy-kid"},
+    )
+    verifier._verify_claims(HTTPAuthorizationCredentials(scheme="a", credentials=token))
+
+    # Testing for validation of JWT standard claims
+
+    # invalid iss
+    token = jwt.encode(
+        {
+            "sub": "dummy-ID",
+            "exp": datetime.utcnow() + timedelta(hours=10),
+            "iat": datetime.utcnow() - timedelta(hours=10),
+            "aud": client_id,
+            "iss": "invalid" + issuer,
+        },
+        "dummy_secret",
+        headers={"alg": "HS256", "typ": "JWT", "kid": "dummy-kid"},
+    )
+    e = _assert_verifier(token, verifier)
+    assert e.status_code == HTTP_403_FORBIDDEN and e.detail == NOT_VERIFIED
+
+    # invalid expiration
+    token = jwt.encode(
+        {
+            "sub": "dummy-ID",
+            "exp": datetime.utcnow() - timedelta(hours=5),
+            "iat": datetime.utcnow() - timedelta(hours=10),
+            "aud": client_id,
+            "iss": issuer,
+        },
+        "dummy_secret",
+        headers={"alg": "HS256", "typ": "JWT", "kid": "dummy-kid"},
+    )
+    e = _assert_verifier(token, verifier)
+    assert e.status_code == HTTP_403_FORBIDDEN and e.detail == NOT_VERIFIED
+
+    # Testing for ID token specific verification
+    # invalid aud
+    # aud must be same as Client ID
+    token = jwt.encode(
+        {
+            "sub": "dummy-ID",
+            "exp": datetime.utcnow() + timedelta(hours=10),
+            "iat": datetime.utcnow() - timedelta(hours=10),
+            "aud": client_id + "incorrect",
+            "iss": issuer,
+        },
+        "dummy_secret",
+        headers={"alg": "HS256", "typ": "JWT", "kid": "dummy-kid"},
+    )
+    e = _assert_verifier(token, verifier)
+    assert e.status_code == HTTP_403_FORBIDDEN and e.detail == NOT_VERIFIED
+
+    # invalid nonce
+    token = jwt.encode(
+        {
+            "sub": "dummy-ID",
+            "exp": datetime.utcnow() + timedelta(hours=10),
+            "iat": datetime.utcnow() - timedelta(hours=10),
+            "aud": client_id,
+            "nonce": nonce + "invalid",
+            "iss": issuer,
+        },
+        "dummy_secret",
+        headers={"alg": "HS256", "typ": "JWT", "kid": "dummy-kid"},
+    )
+    e = _assert_verifier(token, verifier)
+    assert e.status_code == HTTP_403_FORBIDDEN and e.detail == NOT_VERIFIED

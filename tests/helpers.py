@@ -3,11 +3,15 @@ import json
 from dataclasses import dataclass
 from typing import Any, Dict, Iterable, List, Tuple
 
+import pytest
+from fastapi import HTTPException
+from fastapi.security import HTTPAuthorizationCredentials
 from fastapi.testclient import TestClient
 from pydantic.main import BaseModel
 from requests.models import Response
 
 from fastapi_cloudauth.base import ScopedAuth, UserInfoAuth
+from fastapi_cloudauth.verification import JWKsVerifier
 
 
 @dataclass
@@ -57,6 +61,13 @@ def assert_get_response(
     if detail:
         assert response.json().get("detail", "") == detail
     return response
+
+
+def _assert_verifier(token, verifier: JWKsVerifier) -> HTTPException:
+    http_auth = HTTPAuthorizationCredentials(scheme="a", credentials=token)
+    with pytest.raises(HTTPException) as e:
+        verifier._verify_claims(http_auth)
+    return e.value
 
 
 def decode_token(token: str) -> Tuple[Dict[str, Any], Dict[str, Any], List[str]]:

@@ -1,6 +1,6 @@
 from abc import ABC, abstractmethod
 from copy import deepcopy
-from typing import Any, Dict, Optional, Type, Union
+from typing import Any, Dict, List, Optional, Type, Union
 
 from fastapi import Depends, HTTPException
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
@@ -12,6 +12,7 @@ from starlette import status
 from fastapi_cloudauth.messages import NOT_AUTHENTICATED, NOT_VALIDATED_CLAIMS
 from fastapi_cloudauth.verification import (
     JWKS,
+    ExtraVerifier,
     JWKsVerifier,
     ScopedJWKsVerifier,
     Verifier,
@@ -93,13 +94,22 @@ class UserInfoAuth(CloudAuth):
         jwks: JWKS,
         *,
         user_info: Optional[Type[BaseModel]] = None,
+        audience: Optional[Union[str, List[str]]] = None,
+        issuer: Optional[str] = None,
         auto_error: bool = True,
+        extra: Optional[ExtraVerifier] = None,
         **kwargs: Any
     ) -> None:
 
         self.user_info = user_info
         self.auto_error = auto_error
-        self._verifier = JWKsVerifier(jwks, auto_error=self.auto_error)
+        self._verifier = JWKsVerifier(
+            jwks,
+            audience=audience,
+            issuer=issuer,
+            auto_error=self.auto_error,
+            extra=extra,
+        )
 
     @property
     def verifier(self) -> JWKsVerifier:
@@ -175,10 +185,13 @@ class ScopedAuth(CloudAuth):
     def __init__(
         self,
         jwks: JWKS,
+        audience: Optional[Union[str, List[str]]] = None,
+        issuer: Optional[str] = None,
         user_info: Optional[Type[BaseModel]] = None,
         scope_name: Optional[str] = None,
         scope_key: Optional[str] = None,
         auto_error: bool = True,
+        extra: Optional[ExtraVerifier] = None,
     ):
         self.user_info = user_info
         self.auto_error = auto_error
@@ -188,9 +201,12 @@ class ScopedAuth(CloudAuth):
 
         self._verifier = ScopedJWKsVerifier(
             jwks,
+            audience=audience,
+            issuer=issuer,
             scope_name=self._scope_name,
             scope_key=self._scope_key,
             auto_error=self.auto_error,
+            extra=extra,
         )
 
     @property

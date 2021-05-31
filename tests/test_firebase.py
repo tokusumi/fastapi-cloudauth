@@ -2,17 +2,25 @@ import base64
 import json
 import os
 import tempfile
+from calendar import timegm
+from datetime import datetime, timedelta
 from sys import version_info as info
 from typing import Iterable
 
 import firebase_admin
+import pytest
 import requests
+from fastapi.security.http import HTTPAuthorizationCredentials
 from firebase_admin import auth, credentials
+from jose import jwt
+from starlette.status import HTTP_403_FORBIDDEN
 
 from fastapi_cloudauth import FirebaseCurrentUser
 from fastapi_cloudauth.firebase import FirebaseClaims
-from tests.helpers import Auths, BaseTestCloudAuth, decode_token
+from fastapi_cloudauth.messages import NOT_VERIFIED
+from tests.helpers import Auths, BaseTestCloudAuth, _assert_verifier, decode_token
 
+PROJECT_ID = os.getenv("FIREBASE_PROJECTID")
 API_KEY = os.getenv("FIREBASE_APIKEY")
 BASE64_CREDENTIAL = os.getenv("FIREBASE_BASE64_CREDENCIALS")
 _verify_password_url = (
@@ -78,10 +86,12 @@ def get_test_client():
     return Auths(
         protect_auth=None,
         protect_auth_ne=None,
-        ms_auth=FirebaseCurrentUser(),
-        ms_auth_ne=FirebaseCurrentUser(auto_error=False),
-        invalid_ms_auth=FirebaseFakeCurrentUser(),
-        invalid_ms_auth_ne=FirebaseFakeCurrentUser(auto_error=False),
+        ms_auth=FirebaseCurrentUser(project_id=PROJECT_ID),
+        ms_auth_ne=FirebaseCurrentUser(project_id=PROJECT_ID, auto_error=False),
+        invalid_ms_auth=FirebaseFakeCurrentUser(project_id=PROJECT_ID),
+        invalid_ms_auth_ne=FirebaseFakeCurrentUser(
+            project_id=PROJECT_ID, auto_error=False
+        ),
         valid_claim=FirebaseClaims,
         invalid_claim=FirebaseInvalidClaims,
     )
@@ -126,3 +136,146 @@ class FirebaseClient(BaseTestCloudAuth):
         assert id_header.get("typ") == "JWT"
         assert id_payload.get("email") == self.email
         assert id_payload.get("user_id") == self.uid
+
+
+@pytest.mark.unittest
+def test_extra_verify_token():
+    """
+    Testing for ID token validation:
+    - validate standard claims: 
+        - exp: Token expiration
+        - iat: 
+        - aud: audience is same as project ID
+        - iss: Token issuer
+        - sub: not null string or user id
+        - auth_time: authorization time is the past
+    Ref: https://firebase.google.com/docs/auth/admin/verify-id-tokens#verify_id_tokens_using_a_third-party_jwt_library
+    """
+    pjt_id = "dummy"
+    auth = FirebaseCurrentUser(pjt_id)
+    verifier = auth._verifier
+    timegm(datetime.utcnow().utctimetuple())
+    # correct
+    token = jwt.encode(
+        {
+            "sub": "dummy-ID",
+            "exp": timegm((datetime.utcnow() + timedelta(hours=10)).utctimetuple()),
+            "iat": timegm((datetime.utcnow() - timedelta(hours=10)).utctimetuple()),
+            "auth_time": timegm(
+                (datetime.utcnow() - timedelta(hours=10)).utctimetuple()
+            ),
+            "aud": pjt_id,
+            "iss": f"https://securetoken.google.com/{pjt_id}",
+        },
+        "dummy_secret",
+        headers={"alg": "HS256", "typ": "JWT", "kid": "dummy-kid"},
+    )
+    verifier._verify_claims(HTTPAuthorizationCredentials(scheme="a", credentials=token))
+
+    # invalid exp
+    token = jwt.encode(
+        {
+            "sub": "dummy-ID",
+            "exp": timegm((datetime.utcnow() - timedelta(hours=10)).utctimetuple()),
+            "iat": timegm((datetime.utcnow() - timedelta(hours=10)).utctimetuple()),
+            "auth_time": timegm(
+                (datetime.utcnow() - timedelta(hours=11)).utctimetuple()
+            ),
+            "aud": pjt_id,
+            "iss": f"https://securetoken.google.com/{pjt_id}",
+        },
+        "dummy_secret",
+        headers={"alg": "HS256", "typ": "JWT", "kid": "dummy-kid"},
+    )
+    e = _assert_verifier(token, verifier)
+    assert e.status_code == HTTP_403_FORBIDDEN and e.detail == NOT_VERIFIED
+
+    # invalid iat
+    token = jwt.encode(
+        {
+            "sub": "dummy-ID",
+            "exp": timegm((datetime.utcnow() + timedelta(hours=10)).utctimetuple()),
+            "iat": timegm((datetime.utcnow() + timedelta(hours=10)).utctimetuple()),
+            "auth_time": timegm(
+                (datetime.utcnow() - timedelta(hours=11)).utctimetuple()
+            ),
+            "aud": pjt_id,
+            "iss": f"https://securetoken.google.com/{pjt_id}",
+        },
+        "dummy_secret",
+        headers={"alg": "HS256", "typ": "JWT", "kid": "dummy-kid"},
+    )
+    e = _assert_verifier(token, verifier)
+    assert e.status_code == HTTP_403_FORBIDDEN and e.detail == NOT_VERIFIED
+
+    # invalid aud
+    token = jwt.encode(
+        {
+            "sub": "dummy-ID",
+            "exp": timegm((datetime.utcnow() + timedelta(hours=10)).utctimetuple()),
+            "iat": timegm((datetime.utcnow() - timedelta(hours=10)).utctimetuple()),
+            "auth_time": timegm(
+                (datetime.utcnow() - timedelta(hours=11)).utctimetuple()
+            ),
+            "aud": pjt_id + "incorrect",
+            "iss": f"https://securetoken.google.com/{pjt_id}",
+        },
+        "dummy_secret",
+        headers={"alg": "HS256", "typ": "JWT", "kid": "dummy-kid"},
+    )
+    e = _assert_verifier(token, verifier)
+    assert e.status_code == HTTP_403_FORBIDDEN and e.detail == NOT_VERIFIED
+
+    # invalid iss
+    token = jwt.encode(
+        {
+            "sub": "dummy-ID",
+            "exp": timegm((datetime.utcnow() + timedelta(hours=10)).utctimetuple()),
+            "iat": timegm((datetime.utcnow() - timedelta(hours=10)).utctimetuple()),
+            "auth_time": timegm(
+                (datetime.utcnow() - timedelta(hours=11)).utctimetuple()
+            ),
+            "aud": pjt_id,
+            "iss": f"https://securetoken.google.com/{pjt_id}-extra",
+        },
+        "dummy_secret",
+        headers={"alg": "HS256", "typ": "JWT", "kid": "dummy-kid"},
+    )
+    e = _assert_verifier(token, verifier)
+    assert e.status_code == HTTP_403_FORBIDDEN and e.detail == NOT_VERIFIED
+
+    # invalid sub
+    token = jwt.encode(
+        {
+            "sub": "",
+            "exp": timegm((datetime.utcnow() + timedelta(hours=10)).utctimetuple()),
+            "iat": timegm((datetime.utcnow() - timedelta(hours=10)).utctimetuple()),
+            "auth_time": timegm(
+                (datetime.utcnow() - timedelta(hours=11)).utctimetuple()
+            ),
+            "aud": pjt_id,
+            "iss": f"https://securetoken.google.com/{pjt_id}-extra",
+        },
+        "dummy_secret",
+        headers={"alg": "HS256", "typ": "JWT", "kid": "dummy-kid"},
+    )
+    e = _assert_verifier(token, verifier)
+    assert e.status_code == HTTP_403_FORBIDDEN and e.detail == NOT_VERIFIED
+
+    # invalid auth_time
+    token = jwt.encode(
+        {
+            "sub": "dummy-ID",
+            "exp": timegm((datetime.utcnow() + timedelta(hours=10)).utctimetuple()),
+            "iat": timegm((datetime.utcnow() - timedelta(hours=10)).utctimetuple()),
+            "auth_time": timegm(
+                (datetime.utcnow() + timedelta(hours=3)).utctimetuple()
+            ),
+            "aud": pjt_id,
+            "iss": f"https://securetoken.google.com/{pjt_id}",
+        },
+        "dummy_secret",
+        headers={"alg": "HS256", "typ": "JWT", "kid": "dummy-kid"},
+    )
+    e = _assert_verifier(token, verifier)
+    assert e.status_code == HTTP_403_FORBIDDEN and e.detail == NOT_VERIFIED
