@@ -141,7 +141,7 @@ class JWKsVerifier(Verifier):
                 "",
                 audience=self._aud,
                 issuer=self._iss,
-                options={"verify_signature": False, "verify_sub": False,},  # done
+                options={"verify_signature": False, "verify_sub": False},  # done
             )
         except jwt.ExpiredSignatureError as e:
             if self.auto_error:
@@ -166,7 +166,7 @@ class JWKsVerifier(Verifier):
         claims = jwt.get_unverified_claims(http_auth.credentials)
 
         # iat validation
-        try:
+        if claims.get("iat"):
             iat = int(claims["iat"])
             now = timegm(datetime.utcnow().utctimetuple())
             if now < iat:
@@ -175,12 +175,12 @@ class JWKsVerifier(Verifier):
                         status_code=status.HTTP_403_FORBIDDEN, detail=NOT_VERIFIED
                     )
                 return False
-        except ValueError:
-            pass
 
         if self._extra_verifier:
             # check extra claims validation
-            is_verified = self._extra_verifier(claims=claims)
+            is_verified = self._extra_verifier(
+                claims=claims, auto_error=self.auto_error
+            )
 
         return is_verified
 

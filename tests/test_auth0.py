@@ -13,7 +13,13 @@ from starlette.status import HTTP_403_FORBIDDEN
 
 from fastapi_cloudauth.auth0 import Auth0, Auth0Claims, Auth0CurrentUser
 from fastapi_cloudauth.messages import NOT_VERIFIED
-from tests.helpers import Auths, BaseTestCloudAuth, _assert_verifier, decode_token
+from tests.helpers import (
+    Auths,
+    BaseTestCloudAuth,
+    _assert_verifier,
+    _assert_verifier_no_error,
+    decode_token,
+)
 
 DOMAIN = os.getenv("AUTH0_DOMAIN")
 MGMT_CLIENTID = os.getenv("AUTH0_MGMT_CLIENTID")
@@ -259,6 +265,10 @@ def test_extra_verify_access_token():
     issuer = "https://dummy"
     auth = Auth0(domain=domain, customAPI=customAPI, issuer=issuer)
     verifier = auth._verifier
+    auth_no_error = Auth0(
+        domain=domain, customAPI=customAPI, issuer=issuer, auto_error=False
+    )
+    verifier_no_error = auth_no_error._verifier
 
     # correct
     token = jwt.encode(
@@ -273,7 +283,9 @@ def test_extra_verify_access_token():
         headers={"alg": "HS256", "typ": "JWT", "kid": "dummy-kid"},
     )
     verifier._verify_claims(HTTPAuthorizationCredentials(scheme="a", credentials=token))
-
+    verifier_no_error._verify_claims(
+        HTTPAuthorizationCredentials(scheme="a", credentials=token)
+    )
     # Testing for validation of JWT standard claims
 
     # invalid iss
@@ -290,6 +302,7 @@ def test_extra_verify_access_token():
     )
     e = _assert_verifier(token, verifier)
     assert e.status_code == HTTP_403_FORBIDDEN and e.detail == NOT_VERIFIED
+    _assert_verifier_no_error(token, verifier_no_error)
 
     # invalid expiration
     token = jwt.encode(
@@ -305,6 +318,7 @@ def test_extra_verify_access_token():
     )
     e = _assert_verifier(token, verifier)
     assert e.status_code == HTTP_403_FORBIDDEN and e.detail == NOT_VERIFIED
+    _assert_verifier_no_error(token, verifier_no_error)
 
     # Testing for access token specific verification
     # invalid aud
@@ -322,6 +336,7 @@ def test_extra_verify_access_token():
     )
     e = _assert_verifier(token, verifier)
     assert e.status_code == HTTP_403_FORBIDDEN and e.detail == NOT_VERIFIED
+    _assert_verifier_no_error(token, verifier_no_error)
 
 
 @pytest.mark.unittest
@@ -341,6 +356,10 @@ def test_extra_verify_id_token():
         domain=domain, client_id=client_id, nonce=nonce, issuer=issuer
     )
     verifier = auth._verifier
+    auth_no_error = Auth0CurrentUser(
+        domain=domain, client_id=client_id, nonce=nonce, issuer=issuer, auto_error=False
+    )
+    verifier_no_error = auth_no_error._verifier
 
     # correct
     token = jwt.encode(
@@ -356,6 +375,9 @@ def test_extra_verify_id_token():
         headers={"alg": "HS256", "typ": "JWT", "kid": "dummy-kid"},
     )
     verifier._verify_claims(HTTPAuthorizationCredentials(scheme="a", credentials=token))
+    verifier_no_error._verify_claims(
+        HTTPAuthorizationCredentials(scheme="a", credentials=token)
+    )
 
     # Testing for validation of JWT standard claims
 
@@ -373,6 +395,7 @@ def test_extra_verify_id_token():
     )
     e = _assert_verifier(token, verifier)
     assert e.status_code == HTTP_403_FORBIDDEN and e.detail == NOT_VERIFIED
+    _assert_verifier_no_error(token, verifier_no_error)
 
     # invalid expiration
     token = jwt.encode(
@@ -388,6 +411,7 @@ def test_extra_verify_id_token():
     )
     e = _assert_verifier(token, verifier)
     assert e.status_code == HTTP_403_FORBIDDEN and e.detail == NOT_VERIFIED
+    _assert_verifier_no_error(token, verifier_no_error)
 
     # Testing for ID token specific verification
     # invalid aud
@@ -405,6 +429,7 @@ def test_extra_verify_id_token():
     )
     e = _assert_verifier(token, verifier)
     assert e.status_code == HTTP_403_FORBIDDEN and e.detail == NOT_VERIFIED
+    _assert_verifier_no_error(token, verifier_no_error)
 
     # invalid nonce
     token = jwt.encode(
@@ -421,3 +446,4 @@ def test_extra_verify_id_token():
     )
     e = _assert_verifier(token, verifier)
     assert e.status_code == HTTP_403_FORBIDDEN and e.detail == NOT_VERIFIED
+    _assert_verifier_no_error(token, verifier_no_error)

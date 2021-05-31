@@ -70,6 +70,11 @@ def _assert_verifier(token, verifier: JWKsVerifier) -> HTTPException:
     return e.value
 
 
+def _assert_verifier_no_error(token, verifier: JWKsVerifier) -> None:
+    http_auth = HTTPAuthorizationCredentials(scheme="a", credentials=token)
+    assert verifier._verify_claims(http_auth) is False
+
+
 def decode_token(token: str) -> Tuple[Dict[str, Any], Dict[str, Any], List[str]]:
     header, payload, *rest = token.split(".")
 

@@ -13,7 +13,13 @@ from starlette.status import HTTP_403_FORBIDDEN
 from fastapi_cloudauth import Cognito, CognitoCurrentUser
 from fastapi_cloudauth.cognito import CognitoClaims
 from fastapi_cloudauth.messages import NOT_VERIFIED
-from tests.helpers import Auths, BaseTestCloudAuth, _assert_verifier, decode_token
+from tests.helpers import (
+    Auths,
+    BaseTestCloudAuth,
+    _assert_verifier,
+    _assert_verifier_no_error,
+    decode_token,
+)
 
 REGION = os.getenv("COGNITO_REGION")
 USERPOOLID = os.getenv("COGNITO_USERPOOLID")
@@ -172,7 +178,7 @@ class CognitoClient(BaseTestCloudAuth):
 def test_extra_verify_access_token():
     """
     Testing for access token validation:
-    - validate standard claims: 
+    - validate standard claims:
         - exp: Token expiration
         - aud: audience should match the app client ID
         - iss: Token issuer should match your user pool
@@ -184,6 +190,10 @@ def test_extra_verify_access_token():
     client_id = "dummyclientid"
     auth = Cognito(region=region, userPoolId=userPoolId, client_id=client_id)
     verifier = auth._verifier
+    auth_no_error = Cognito(
+        region=region, userPoolId=userPoolId, client_id=client_id, auto_error=False
+    )
+    verifier_no_error = auth_no_error._verifier
 
     # correct
     token = jwt.encode(
@@ -199,6 +209,9 @@ def test_extra_verify_access_token():
         headers={"alg": "HS256", "typ": "JWT", "kid": "dummy-kid"},
     )
     verifier._verify_claims(HTTPAuthorizationCredentials(scheme="a", credentials=token))
+    verifier_no_error._verify_claims(
+        HTTPAuthorizationCredentials(scheme="a", credentials=token)
+    )
 
     # invalid exp
     token = jwt.encode(
@@ -215,6 +228,7 @@ def test_extra_verify_access_token():
     )
     e = _assert_verifier(token, verifier)
     assert e.status_code == HTTP_403_FORBIDDEN and e.detail == NOT_VERIFIED
+    _assert_verifier_no_error(token, verifier_no_error)
 
     # invalid aud
     token = jwt.encode(
@@ -231,6 +245,7 @@ def test_extra_verify_access_token():
     )
     e = _assert_verifier(token, verifier)
     assert e.status_code == HTTP_403_FORBIDDEN and e.detail == NOT_VERIFIED
+    _assert_verifier_no_error(token, verifier_no_error)
 
     # invalid iss
     token = jwt.encode(
@@ -248,6 +263,7 @@ def test_extra_verify_access_token():
     )
     e = _assert_verifier(token, verifier)
     assert e.status_code == HTTP_403_FORBIDDEN and e.detail == NOT_VERIFIED
+    _assert_verifier_no_error(token, verifier_no_error)
 
     # invalid token-use
     token = jwt.encode(
@@ -264,13 +280,14 @@ def test_extra_verify_access_token():
     )
     e = _assert_verifier(token, verifier)
     assert e.status_code == HTTP_403_FORBIDDEN and e.detail == NOT_VERIFIED
+    _assert_verifier_no_error(token, verifier_no_error)
 
 
 @pytest.mark.unittest
 def test_extra_verify_id_token():
     """
     Testing for ID token validation:
-    - validate standard claims: 
+    - validate standard claims:
         - exp: Token expiration
         - aud: audience should match the app client ID
         - iss: Token issuer should match your user pool
@@ -282,6 +299,10 @@ def test_extra_verify_id_token():
     client_id = "dummyclientid"
     auth = CognitoCurrentUser(region=region, userPoolId=userPoolId, client_id=client_id)
     verifier = auth._verifier
+    auth_no_error = CognitoCurrentUser(
+        region=region, userPoolId=userPoolId, client_id=client_id, auto_error=False
+    )
+    verifier_no_error = auth_no_error._verifier
 
     # correct
     token = jwt.encode(
@@ -297,7 +318,9 @@ def test_extra_verify_id_token():
         headers={"alg": "HS256", "typ": "JWT", "kid": "dummy-kid"},
     )
     verifier._verify_claims(HTTPAuthorizationCredentials(scheme="a", credentials=token))
-
+    verifier_no_error._verify_claims(
+        HTTPAuthorizationCredentials(scheme="a", credentials=token)
+    )
     # invalid exp
     token = jwt.encode(
         {
@@ -313,6 +336,7 @@ def test_extra_verify_id_token():
     )
     e = _assert_verifier(token, verifier)
     assert e.status_code == HTTP_403_FORBIDDEN and e.detail == NOT_VERIFIED
+    _assert_verifier_no_error(token, verifier_no_error)
 
     # invalid aud
     token = jwt.encode(
@@ -329,6 +353,7 @@ def test_extra_verify_id_token():
     )
     e = _assert_verifier(token, verifier)
     assert e.status_code == HTTP_403_FORBIDDEN and e.detail == NOT_VERIFIED
+    _assert_verifier_no_error(token, verifier_no_error)
 
     # invalid iss
     token = jwt.encode(
@@ -346,6 +371,7 @@ def test_extra_verify_id_token():
     )
     e = _assert_verifier(token, verifier)
     assert e.status_code == HTTP_403_FORBIDDEN and e.detail == NOT_VERIFIED
+    _assert_verifier_no_error(token, verifier_no_error)
 
     # invalid token-use
     token = jwt.encode(
@@ -362,3 +388,4 @@ def test_extra_verify_id_token():
     )
     e = _assert_verifier(token, verifier)
     assert e.status_code == HTTP_403_FORBIDDEN and e.detail == NOT_VERIFIED
+    _assert_verifier_no_error(token, verifier_no_error)

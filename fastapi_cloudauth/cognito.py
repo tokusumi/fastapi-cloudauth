@@ -80,7 +80,7 @@ class CognitoExtraVerifier(ExtraVerifier):
 
     def __call__(self, claims: Dict[str, str], auto_error: bool = True) -> bool:
         # check token_use
-        if claims.get("token_use"):
+        if claims.get("token_use") is None:
             if claims["token_use"] not in self._tu:
                 if auto_error:
                     raise HTTPException(

@@ -9,7 +9,7 @@ from starlette.status import HTTP_403_FORBIDDEN
 from fastapi_cloudauth import messages
 from fastapi_cloudauth.verification import JWKS, JWKsVerifier, ScopedJWKsVerifier
 
-from .helpers import _assert_verifier
+from .helpers import _assert_verifier, _assert_verifier_no_error
 
 
 @pytest.mark.unittest
@@ -42,6 +42,7 @@ def test_malformed_token_handling():
 @pytest.mark.unittest
 def test_verify_token():
     verifier = JWKsVerifier(jwks=JWKS(keys=[]))
+    verifier_no_error = JWKsVerifier(jwks=JWKS(keys=[]), auto_error=False)
 
     # correct
     token = jwt.encode(
@@ -54,6 +55,9 @@ def test_verify_token():
         headers={"alg": "HS256", "typ": "JWT", "kid": "dummy-kid"},
     )
     verifier._verify_claims(HTTPAuthorizationCredentials(scheme="a", credentials=token))
+    verifier_no_error._verify_claims(
+        HTTPAuthorizationCredentials(scheme="a", credentials=token)
+    )
 
     # token expired
     token = jwt.encode(
@@ -67,6 +71,7 @@ def test_verify_token():
     )
     e = _assert_verifier(token, verifier)
     assert e.status_code == HTTP_403_FORBIDDEN and e.detail == messages.NOT_VERIFIED
+    _assert_verifier_no_error(token, verifier_no_error)
 
     # token created at future
     token = jwt.encode(
@@ -80,3 +85,21 @@ def test_verify_token():
     )
     e = _assert_verifier(token, verifier)
     assert e.status_code == HTTP_403_FORBIDDEN and e.detail == messages.NOT_VERIFIED
+    _assert_verifier_no_error(token, verifier_no_error)
+
+    # invalid format
+    token = jwt.encode(
+        {
+            "sub": "dummy-ID",
+            "exp": datetime.utcnow() + timedelta(hours=10),
+            "iat": datetime.utcnow(),
+        },
+        "dummy_secret",
+        headers={"alg": "HS256", "typ": "JWT", "kid": "dummy-kid"},
+    )
+    token = token.split(".")[0]
+    e = _assert_verifier(token, verifier)
+    assert (
+        e.status_code == HTTP_403_FORBIDDEN and e.detail == messages.NOT_AUTHENTICATED
+    )
+    _assert_verifier_no_error(token, verifier_no_error)

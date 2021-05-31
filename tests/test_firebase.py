@@ -18,7 +18,13 @@ from starlette.status import HTTP_403_FORBIDDEN
 from fastapi_cloudauth import FirebaseCurrentUser
 from fastapi_cloudauth.firebase import FirebaseClaims
 from fastapi_cloudauth.messages import NOT_VERIFIED
-from tests.helpers import Auths, BaseTestCloudAuth, _assert_verifier, decode_token
+from tests.helpers import (
+    Auths,
+    BaseTestCloudAuth,
+    _assert_verifier,
+    _assert_verifier_no_error,
+    decode_token,
+)
 
 PROJECT_ID = os.getenv("FIREBASE_PROJECTID")
 API_KEY = os.getenv("FIREBASE_APIKEY")
@@ -142,9 +148,9 @@ class FirebaseClient(BaseTestCloudAuth):
 def test_extra_verify_token():
     """
     Testing for ID token validation:
-    - validate standard claims: 
+    - validate standard claims:
         - exp: Token expiration
-        - iat: 
+        - iat:
         - aud: audience is same as project ID
         - iss: Token issuer
         - sub: not null string or user id
@@ -154,7 +160,9 @@ def test_extra_verify_token():
     pjt_id = "dummy"
     auth = FirebaseCurrentUser(pjt_id)
     verifier = auth._verifier
-    timegm(datetime.utcnow().utctimetuple())
+    auth_no_error = FirebaseCurrentUser(pjt_id, auto_error=False)
+    verifier_no_error = auth_no_error._verifier
+
     # correct
     token = jwt.encode(
         {
@@ -171,6 +179,9 @@ def test_extra_verify_token():
         headers={"alg": "HS256", "typ": "JWT", "kid": "dummy-kid"},
     )
     verifier._verify_claims(HTTPAuthorizationCredentials(scheme="a", credentials=token))
+    verifier_no_error._verify_claims(
+        HTTPAuthorizationCredentials(scheme="a", credentials=token)
+    )
 
     # invalid exp
     token = jwt.encode(
@@ -189,6 +200,7 @@ def test_extra_verify_token():
     )
     e = _assert_verifier(token, verifier)
     assert e.status_code == HTTP_403_FORBIDDEN and e.detail == NOT_VERIFIED
+    _assert_verifier_no_error(token, verifier_no_error)
 
     # invalid iat
     token = jwt.encode(
@@ -207,6 +219,7 @@ def test_extra_verify_token():
     )
     e = _assert_verifier(token, verifier)
     assert e.status_code == HTTP_403_FORBIDDEN and e.detail == NOT_VERIFIED
+    _assert_verifier_no_error(token, verifier_no_error)
 
     # invalid aud
     token = jwt.encode(
@@ -225,6 +238,7 @@ def test_extra_verify_token():
     )
     e = _assert_verifier(token, verifier)
     assert e.status_code == HTTP_403_FORBIDDEN and e.detail == NOT_VERIFIED
+    _assert_verifier_no_error(token, verifier_no_error)
 
     # invalid iss
     token = jwt.encode(
@@ -243,6 +257,7 @@ def test_extra_verify_token():
     )
     e = _assert_verifier(token, verifier)
     assert e.status_code == HTTP_403_FORBIDDEN and e.detail == NOT_VERIFIED
+    _assert_verifier_no_error(token, verifier_no_error)
 
     # invalid sub
     token = jwt.encode(
@@ -261,6 +276,7 @@ def test_extra_verify_token():
     )
     e = _assert_verifier(token, verifier)
     assert e.status_code == HTTP_403_FORBIDDEN and e.detail == NOT_VERIFIED
+    _assert_verifier_no_error(token, verifier_no_error)
 
     # invalid auth_time
     token = jwt.encode(
@@ -279,3 +295,4 @@ def test_extra_verify_token():
     )
     e = _assert_verifier(token, verifier)
     assert e.status_code == HTTP_403_FORBIDDEN and e.detail == NOT_VERIFIED
+    _assert_verifier_no_error(token, verifier_no_error)

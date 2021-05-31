@@ -44,7 +44,7 @@ class FirebaseExtraVerifier(ExtraVerifier):
 
     def __call__(self, claims: Dict[str, str], auto_error: bool = True) -> bool:
         # auth_time must be past time
-        try:
+        if claims.get("auth_time"):
             auth_time = int(claims["auth_time"])
             now = timegm(datetime.utcnow().utctimetuple())
             if now < auth_time:
@@ -53,6 +53,4 @@ class FirebaseExtraVerifier(ExtraVerifier):
                         status_code=status.HTTP_403_FORBIDDEN, detail=NOT_VERIFIED
                     )
                 return False
-        except KeyError:
-            pass
         return True
