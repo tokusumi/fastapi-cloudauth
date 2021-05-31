@@ -8,7 +8,7 @@ import pytest
 from botocore.exceptions import ClientError
 from fastapi.security.http import HTTPAuthorizationCredentials
 from jose import jwt
-from starlette.status import HTTP_401_UNAUTHORIZED, HTTP_401_UNAUTHORIZED
+from starlette.status import HTTP_401_UNAUTHORIZED
 
 from fastapi_cloudauth import Cognito, CognitoCurrentUser
 from fastapi_cloudauth.cognito import CognitoClaims
