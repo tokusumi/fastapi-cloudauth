@@ -8,8 +8,8 @@ fastapi-cloudauth standardizes and simplifies the integration between FastAPI an
 
 ## Features
 
-* [X] Verify access/id token
-* [X] Authenticate permission based on scope (or groups) within access token and Extract user info 
+* [X] Verify access/id token: standard JWT validation (signature, expiration), token audience claims and etc.
+* [X] Verify permissions based on scope (or groups) within access token and Extract user info 
 * [X] Get the detail of login user info (name, email, etc.) within ID token
 * [X] Dependency injection for verification/getting user, powered by [FastAPI](https://github.com/tiangolo/fastapi)
 * [X] Support for:
@@ -31,7 +31,7 @@ $ pip install fastapi-cloudauth
 
 ### Pre-requirement
 
-* Check `region` and `userPoolID` of AWS Cognito that you manage to
+* Check `region`, `userPoolID` and `AppClientID` of AWS Cognito that you manage to
 * Create a user assigned `read:users` permission in AWS Cognito 
 * Get Access/ID token for the created user
 
@@ -48,8 +48,11 @@ from fastapi import FastAPI, Depends
 from fastapi_cloudauth.cognito import Cognito, CognitoCurrentUser, CognitoClaims
 
 app = FastAPI()
-auth = Cognito(region=os.environ["REGION"], userPoolId=os.environ["USERPOOLID"])
-
+auth = Cognito(
+    region=os.environ["REGION"], 
+    userPoolId=os.environ["USERPOOLID"],
+    client_id=os.environ["APPCLIENTID"]
+)
 
 @app.get("/", dependencies=[Depends(auth.scope("read:users"))])
 def secure():
@@ -106,7 +109,7 @@ You can supply a token and try the endpoint interactively.
 
 ### Pre-requirement
 
-* Check `domain` of Auth0 that you manage to
+* Check `domain`, `customAPI` (Audience) and `ClientID` of Auth0 that you manage to
 * Create a user assigned `read:users` permission in Auth0 
 * Get Access/ID token for the created user
 
@@ -122,7 +125,7 @@ from fastapi_cloudauth.auth0 import Auth0, Auth0CurrentUser, Auth0Claims
 
 app = FastAPI()
 
-auth = Auth0(domain=os.environ["DOMAIN"])
+auth = Auth0(domain=os.environ["DOMAIN"], customAPI=os.environ["CUSTOMAPI"])
 
 
 @app.get("/", dependencies=[Depends(auth.scope("read:users"))])
@@ -141,7 +144,10 @@ def secure_access(current_user: AccessUser = Depends(auth.claim(AccessUser))):
     return f"Hello", {current_user.sub}
 
 
-get_current_user = Auth0CurrentUser(domain=os.environ["DOMAIN"])
+get_current_user = Auth0CurrentUser(
+    domain=os.environ["DOMAIN"],
+    client_id=os.environ["CLIENTID"]
+)
 
 
 @app.get("/user/")
@@ -157,7 +163,7 @@ Try to run the server and see interactive UI in the same way.
 
 ### Pre-requirement
 
-* Create a user in Firebase Authentication 
+* Create a user in Firebase Authentication and get `project ID`
 * Get ID token for the created user
 
 ### Create it
@@ -170,7 +176,9 @@ from fastapi_cloudauth.firebase import FirebaseCurrentUser, FirebaseClaims
 
 app = FastAPI()
 
-get_current_user = FirebaseCurrentUser()
+get_current_user = FirebaseCurrentUser(
+    project_id=os.environ["PROJECT_ID]
+)
 
 
 @app.get("/user/")
@@ -218,7 +226,7 @@ from fastapi_cloudauth.auth0 import Auth0Claims  # base current user info model 
 class CustomAuth0Claims(Auth0Claims):
     user_id: str = Field(alias="sub")
 
-get_current_user = Auth0CurrentUser(domain=DOMAIN)
+get_current_user = Auth0CurrentUser(domain=DOMAIN, client_id=CLIENTID)
 get_current_user.user_info = CustomAuth0Claims  # override user info model with a custom one.
 ```
 
