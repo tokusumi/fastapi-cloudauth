@@ -14,6 +14,7 @@ from fastapi_cloudauth.messages import (
     NOT_VERIFIED,
     SCOPE_NOT_MATCHED,
 )
+from fastapi_cloudauth.verification import Operator
 from tests.helpers import BaseTestCloudAuth as Base
 from tests.helpers import assert_get_response
 from tests.test_auth0 import Auth0Client
@@ -22,7 +23,7 @@ from tests.test_firebase import FirebaseClient
 
 
 class BaseTestCase:
-    scope = ("read:test",)
+    scope = ("read:test", "write:test")
     verify_access_token = False
     verify_id_token = False
     ACCESS_TOKEN = ""
@@ -105,14 +106,18 @@ def add_endpoint_for_accesstoken(
         assert payload is None
 
     @app.get("/scope/")
-    async def secure_scope(payload=Depends(t.protect_auth.scope(scope[0])),) -> bool:
+    async def secure_scope(payload=Depends(t.protect_auth.scope(scope))) -> bool:
         pass
 
     @app.get("/scope/no-error/")
-    async def secure_scope_no_error(
-        payload=Depends(t.protect_auth_ne.scope(scope[0])),
-    ):
+    async def secure_scope_no_error(payload=Depends(t.protect_auth_ne.scope(scope))):
         assert payload is None
+
+    @app.get("/scope-any/")
+    async def secure_scope_any(
+        payload=Depends(t.protect_auth.scope(scope, op=Operator._any))
+    ) -> bool:
+        pass
 
     return app
 
@@ -185,6 +190,10 @@ class AccessTokenTestCase(BaseTestCase):
 
     def test_valid_scope(self):
         self.success_case("/scope/", self.SCOPE_ACCESS_TOKEN)
+
+    def test_valid_scope_any(self):
+        # access token must include a part of scopes in SCOPE_ACCESS_TOKEN
+        self.success_case("/scope-any/", self.ACCESS_TOKEN)
 
     def test_invalid_scope(self):
         self.failure_case(

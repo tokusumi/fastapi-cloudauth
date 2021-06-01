@@ -54,7 +54,7 @@ auth = Cognito(
     client_id=os.environ["APPCLIENTID"]
 )
 
-@app.get("/", dependencies=[Depends(auth.scope("read:users"))])
+@app.get("/", dependencies=[Depends(auth.scope(["read:users"]))])
 def secure():
     # access token is valid
     return "Hello"
@@ -130,7 +130,7 @@ app = FastAPI()
 auth = Auth0(domain=os.environ["DOMAIN"], customAPI=os.environ["CUSTOMAPI"])
 
 
-@app.get("/", dependencies=[Depends(auth.scope("read:users"))])
+@app.get("/", dependencies=[Depends(auth.scope(["read:users"]))])
 def secure():
     # access token is valid
     return "Hello"
@@ -255,6 +255,30 @@ get_raw_info = get_current_user.claim(None)
 async def raw_detail(user = Depends(get_raw_info)):
     # user has all items (ex. iss, sub, aud, exp, ... it depends on passed token) 
     return f"Hello, {user.get('sub')}"
+```
+
+## Additional scopes
+
+Advanced user-SCOPE verification to protect your API.
+
+Supports:
+
+- all (default): required all scopes you set
+- any: At least one of the configured scopes is required
+
+Use as (`auth` is this instanse and `app` is fastapi.FastAPI instanse):
+
+```python3
+from fastapi import Depends
+from fastapi_cloudauth import Operator
+
+@app.get("/", dependencies=[Depends(auth.scope(["allowned", "scopes"]))])
+def api_all_scope():
+    return "user has 'allowned' and 'scopes' scopes"
+
+@app.get("/", dependencies=[Depends(auth.scope(["allowned", "scopes"], op=Operator._any))])
+def api_any_scope():
+    return "user has at least one of scopes (allowned, scopes)"
 ```
 
 ## Development - Contributing

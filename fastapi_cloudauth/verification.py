@@ -2,6 +2,7 @@ from abc import ABC, abstractmethod
 from calendar import timegm
 from copy import deepcopy
 from datetime import datetime
+from enum import Enum
 from typing import Any, Dict, List, Optional, Union
 
 import requests
@@ -214,14 +215,20 @@ class JWKsVerifier(Verifier):
         return clone
 
 
+class Operator(Enum):
+    _all = "all"
+    _any = "any"
+
+
 class ScopedJWKsVerifier(JWKsVerifier):
     def __init__(
         self,
         jwks: JWKS,
         audience: Optional[Union[str, List[str]]] = None,
         issuer: Optional[str] = None,
-        scope_name: Optional[str] = None,
         scope_key: Optional[str] = None,
+        scope_name: Optional[List[str]] = None,
+        op: Operator = Operator._all,
         auto_error: bool = True,
         extra: Optional[ExtraVerifier] = None,
         *args: Any,
@@ -233,8 +240,9 @@ class ScopedJWKsVerifier(JWKsVerifier):
         super().__init__(
             jwks, auto_error=auto_error, extra=extra, audience=audience, issuer=issuer
         )
-        self.scope_name = scope_name
+        self.scope_name = None if not scope_name else set(scope_name)
         self.scope_key = scope_key
+        self.op = op
 
     def clone(self, instance: "ScopedJWKsVerifier") -> "ScopedJWKsVerifier":  # type: ignore[override]
         cloned = super().clone(instance)
@@ -254,9 +262,26 @@ class ScopedJWKsVerifier(JWKsVerifier):
                 return False
 
         scopes = claims.get(self.scope_key)
+        if self.scope_name is None:
+            # scope is not required
+            return True
+
+        matched = True
         if isinstance(scopes, str):
             scopes = {scope.strip() for scope in scopes.split()}
-        if scopes is None or self.scope_name not in scopes:
+        else:
+            try:
+                scopes = set(scopes)
+            except TypeError:
+                matched = False
+        if matched:
+            if self.op == Operator._any:
+                # any
+                matched = len(self.scope_name & scopes) > 0
+            else:
+                # all
+                matched = self.scope_name.issubset(scopes)
+        if not matched:
             if self.auto_error:
                 raise HTTPException(
                     status_code=status.HTTP_403_FORBIDDEN, detail=SCOPE_NOT_MATCHED,

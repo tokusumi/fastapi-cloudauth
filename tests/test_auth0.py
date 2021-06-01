@@ -1,7 +1,7 @@
 import os
 from datetime import datetime, timedelta
 from sys import version_info as info
-from typing import Iterable, Optional
+from typing import Iterable, List, Optional
 
 import pytest
 import requests
@@ -67,7 +67,7 @@ def add_test_user(
     auth0: Auth0sdk,
     username=f"test_user{info.major}{info.minor}@example.com",
     password="testPass1-",
-    scope: Optional[str] = None,
+    scopes: Optional[List[str]] = None,
 ):
     """create test user with Auth0 SDK
     Requirements:
@@ -87,10 +87,13 @@ def add_test_user(
     )
     user_id = f"auth0|{resp.json()['_id']}"
 
-    if scope:
+    if scopes:
         auth0.users.add_permissions(
             user_id,
-            [{"permission_name": scope, "resource_server_identifier": AUDIENCE}],
+            [
+                {"permission_name": scope, "resource_server_identifier": AUDIENCE}
+                for scope in scopes
+            ],
         )
 
 
@@ -182,15 +185,20 @@ class Auth0Client(BaseTestCloudAuth):
         assert_env()
 
         auth0sdk = init()
-        self.scope = scope[0]
+        self.scope = scope
         self.scope_username = (
-            f"{self.scope.replace(':', '-')}{self.username}"
+            f"{'-'.join(self.scope).replace(':', '-')}{self.username}"
             if self.scope
             else self.username
         )
 
         delete_user(auth0sdk, username=self.username, password=self.password)
-        add_test_user(auth0sdk, username=self.username, password=self.password)
+        add_test_user(
+            auth0sdk,
+            username=self.username,
+            password=self.password,
+            scopes=[self.scope[0]],
+        )
         self.ACCESS_TOKEN = get_access_token(
             username=self.username, password=self.password
         )
@@ -201,7 +209,7 @@ class Auth0Client(BaseTestCloudAuth):
             auth0sdk,
             username=self.scope_username,
             password=self.password,
-            scope=self.scope,
+            scopes=self.scope,
         )
         self.SCOPE_ACCESS_TOKEN = get_access_token(
             username=self.scope_username, password=self.password
@@ -239,12 +247,12 @@ class Auth0Client(BaseTestCloudAuth):
         # access token
         header, payload, *_ = decode_token(self.ACCESS_TOKEN)
         assert header.get("typ") == "JWT"
-        assert not payload.get("permissions")
+        assert [self.scope[0]] == payload.get("permissions")
 
         # scope access token
         scope_header, scope_payload, *_ = decode_token(self.SCOPE_ACCESS_TOKEN)
         assert scope_header.get("typ") == "JWT"
-        assert scope_payload.get("permissions")
+        assert set(self.scope) == set(scope_payload.get("permissions"))
 
         # id token
         id_header, id_payload, *_ = decode_token(self.ID_TOKEN)
