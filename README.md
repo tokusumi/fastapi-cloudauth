@@ -257,6 +257,30 @@ async def raw_detail(user = Depends(get_raw_info)):
     return f"Hello, {user.get('sub')}"
 ```
 
+## Additional scopes
+
+Advanced user-SCOPE verification to protect your API.
+
+Supports:
+
+- all (default): required all scopes you set
+- any: At least one of the configured scopes is required
+
+Use as (`auth` is this instanse and `app` is fastapi.FastAPI instanse):
+
+```python3
+from fastapi import Depends
+from fastapi_cloudauth import Operator
+
+@app.get("/", dependencies=[Depends(auth.scope(["allowned", "scopes"]))])
+def api_all_scope():
+    return "user has 'allowned' and 'scopes' scopes"
+
+@app.get("/", dependencies=[Depends(auth.scope(["allowned", "scopes"], op=Operator._any))])
+def api_any_scope():
+    return "user has at least one of scopes (allowned, scopes)"
+```
+
 ## Development - Contributing
 
 Please read the [CONTRIBUTING](../CONTRIBUTING.md) how to setup development environment and testing.
