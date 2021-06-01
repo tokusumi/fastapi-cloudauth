@@ -6,14 +6,13 @@ from fastapi.security import HTTPAuthorizationCredentials
 from jose import jwt
 from starlette.status import HTTP_401_UNAUTHORIZED
 
+from fastapi_cloudauth import messages
 from fastapi_cloudauth.verification import (
     JWKS,
     JWKsVerifier,
-    ScopedJWKsVerifier,
     Operator,
+    ScopedJWKsVerifier,
 )
-from fastapi_cloudauth import messages
-from fastapi_cloudauth.verification import JWKS, JWKsVerifier, ScopedJWKsVerifier
 
 from .helpers import _assert_verifier, _assert_verifier_no_error
 

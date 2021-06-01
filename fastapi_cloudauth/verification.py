@@ -1,9 +1,8 @@
 from abc import ABC, abstractmethod
 from calendar import timegm
 from copy import deepcopy
-from typing import Any, Dict, List, Optional
-from enum import Enum
 from datetime import datetime
+from enum import Enum
 from typing import Any, Dict, List, Optional, Union
 
 import requests

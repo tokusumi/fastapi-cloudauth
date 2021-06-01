@@ -1,8 +1,7 @@
 import os
 from datetime import datetime, timedelta
 from sys import version_info as info
-from typing import List, Optional
-from typing import Iterable, Optional
+from typing import Iterable, List, Optional
 
 import boto3
 import pytest
@@ -11,7 +10,6 @@ from fastapi.security.http import HTTPAuthorizationCredentials
 from jose import jwt
 from starlette.status import HTTP_401_UNAUTHORIZED
 
-from fastapi_cloudauth.verification import Operator
 from fastapi_cloudauth import Cognito, CognitoCurrentUser
 from fastapi_cloudauth.cognito import CognitoClaims
 from fastapi_cloudauth.messages import NOT_VERIFIED
@@ -103,7 +101,7 @@ class CognitoClient(BaseTestCloudAuth):
     def setup(self, scope: Iterable[str]) -> None:
         assert_env()
 
-        self.scope = scope[0]
+        self.scope = scope
         region = REGION
         userPoolId = USERPOOLID
 

@@ -1,8 +1,7 @@
 import os
 from datetime import datetime, timedelta
 from sys import version_info as info
-from typing import List, Optional
-from typing import Iterable, Optional
+from typing import Iterable, List, Optional
 
 import pytest
 import requests
@@ -12,7 +11,6 @@ from fastapi.security.http import HTTPAuthorizationCredentials
 from jose import jwt
 from starlette.status import HTTP_401_UNAUTHORIZED
 
-from fastapi_cloudauth.verification import Operator
 from fastapi_cloudauth.auth0 import Auth0, Auth0Claims, Auth0CurrentUser
 from fastapi_cloudauth.messages import NOT_VERIFIED
 from tests.helpers import (
@@ -187,7 +185,7 @@ class Auth0Client(BaseTestCloudAuth):
         assert_env()
 
         auth0sdk = init()
-        self.scope = scope[0]
+        self.scope = scope
         self.scope_username = (
             f"{'-'.join(self.scope).replace(':', '-')}{self.username}"
             if self.scope

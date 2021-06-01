@@ -14,9 +14,9 @@ from fastapi_cloudauth.verification import (
     JWKS,
     ExtraVerifier,
     JWKsVerifier,
+    Operator,
     ScopedJWKsVerifier,
     Verifier,
-    Operator,
 )
 
 
@@ -246,7 +246,7 @@ class ScopedAuth(CloudAuth):
         raise NotImplementedError  # pragma: no cover
 
     def scope(
-        self, scope_name: Optional[Union[str, List[str]]], op=Operator._all
+        self, scope_name: Optional[Union[str, List[str]]], op: Operator = Operator._all
     ) -> "ScopedAuth":
         """User-SCOPE verification Shortcut to pass it into dependencies.
         Use as (`auth` is this instanse and `app` is fastapi.FastAPI instanse):
