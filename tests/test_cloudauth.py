@@ -1,4 +1,11 @@
+from typing import Iterable, Optional, Type
+
 import pytest
+from fastapi import Depends
+from fastapi.applications import FastAPI
+from fastapi.testclient import TestClient
+from pydantic import BaseModel
+from requests.models import Response
 
 from fastapi_cloudauth.messages import (
     NO_PUBLICKEY,
@@ -7,56 +14,132 @@ from fastapi_cloudauth.messages import (
     NOT_VERIFIED,
     SCOPE_NOT_MATCHED,
 )
+from tests.helpers import BaseTestCloudAuth as Base
 from tests.helpers import assert_get_response
 from tests.test_auth0 import Auth0Client
 from tests.test_cognito import CognitoClient
 from tests.test_firebase import FirebaseClient
 
 
-class BaseTestCloudAuth:
-    cloud_auth = None
+class BaseTestCase:
+    scope = ("read:test",)
+    verify_access_token = False
+    verify_id_token = False
+    ACCESS_TOKEN = ""
+    SCOPE_ACCESS_TOKEN = ""
+    ID_TOKEN = ""
+    client: TestClient
+    cloud_auth: Type[Base]
+    _cloud_auth: Base
 
     @classmethod
     def setup_class(cls):
         """set credentials and create test user"""
-        cls.cloud_auth = cls.cloud_auth()
-        cls.cloud_auth.setup()
+        cls._cloud_auth = cls.cloud_auth()
+        cls._cloud_auth.setup(cls.scope)
 
         # get access token and id token
-        cls.ACCESS_TOKEN = cls.cloud_auth.ACCESS_TOKEN
-        cls.SCOPE_ACCESS_TOKEN = cls.cloud_auth.SCOPE_ACCESS_TOKEN
-        cls.ID_TOKEN = cls.cloud_auth.ID_TOKEN
+        cls.ACCESS_TOKEN = cls._cloud_auth.ACCESS_TOKEN
+        cls.SCOPE_ACCESS_TOKEN = cls._cloud_auth.SCOPE_ACCESS_TOKEN
+        cls.ID_TOKEN = cls._cloud_auth.ID_TOKEN
 
         # set application for testing
-        cls.client = cls.cloud_auth.TESTCLIENT
+        app = FastAPI()
+        if cls.verify_access_token:
+            app = add_endpoint_for_accesstoken(app, cls._cloud_auth, cls.scope)
+        if cls.verify_id_token:
+            app = add_endpoint_for_idtoken(app, cls._cloud_auth)
+        cls.client = TestClient(app)
 
     @classmethod
     def teardown_class(cls):
         """delete test user"""
-        cls.cloud_auth.teardown()
+        cls._cloud_auth.teardown()
 
     def test_decode_token(self):
-        self.cloud_auth.decode()
+        self._cloud_auth.decode()
 
 
-class AccessTokenTestCase(BaseTestCloudAuth):
-    def success_case(self, path: str, token: str = None):
+def add_endpoint_for_accesstoken(
+    app: FastAPI, auth: Base, scope: Iterable[str]
+) -> FastAPI:
+    t = auth.TESTAUTH
+
+    @app.get("/")
+    async def secure(payload: bool = Depends(t.protect_auth)) -> bool:
+        return payload
+
+    @app.get("/no-error/", dependencies=[Depends(t.protect_auth_ne)])
+    async def secure_no_error(payload=Depends(t.protect_auth_ne)) -> bool:
+        return payload
+
+    class AccessClaim(BaseModel):
+        sub: str = None
+
+    @app.get("/access/user")
+    async def secure_access_user(
+        payload: AccessClaim = Depends(t.protect_auth.claim(AccessClaim)),
+    ):
+        assert isinstance(payload, AccessClaim)
+        return payload
+
+    @app.get("/access/user/no-error/")
+    async def secure_access_user_no_error(
+        payload: AccessClaim = Depends(t.protect_auth_ne.claim(AccessClaim)),
+    ) -> Optional[AccessClaim]:
+        return payload
+
+    class InvalidAccessClaim(BaseModel):
+        fake_field: str
+
+    @app.get("/access/user/invalid")
+    async def invalid_access_user(
+        payload=Depends(t.protect_auth.claim(InvalidAccessClaim)),
+    ):
+        return payload  # pragma: no cover
+
+    @app.get("/access/user/invalid/no-error/")
+    async def invalid_access_user_no_error(
+        payload=Depends(t.protect_auth_ne.claim(InvalidAccessClaim)),
+    ) -> Optional[InvalidAccessClaim]:
+        assert payload is None
+
+    @app.get("/scope/")
+    async def secure_scope(payload=Depends(t.protect_auth.scope(scope[0])),) -> bool:
+        pass
+
+    @app.get("/scope/no-error/")
+    async def secure_scope_no_error(
+        payload=Depends(t.protect_auth_ne.scope(scope[0])),
+    ):
+        assert payload is None
+
+    return app
+
+
+class AccessTokenTestCase(BaseTestCase):
+    verify_access_token = True
+
+    @classmethod
+    def success_case(self, path: str, token: str = "") -> Response:
         return assert_get_response(
             client=self.client, endpoint=path, token=token, status_code=200
         )
 
-    def userinfo_success_case(self, path: str, token: str = None):
+    def userinfo_success_case(self, path: str, token: str = "") -> Response:
         response = self.success_case(path, token)
         for value in response.json().values():
             assert value, f"{response.content} failed to parse"
         return response
 
-    def failure_case(self, path: str, token: str = None, detail=""):
+    def failure_case(
+        self, path: str, token: str = "", detail: str = "", status=401
+    ) -> Response:
         return assert_get_response(
             client=self.client,
             endpoint=path,
             token=token,
-            status_code=403,
+            status_code=status,
             detail=detail,
         )
 
@@ -108,7 +191,9 @@ class AccessTokenTestCase(BaseTestCloudAuth):
         self.success_case("/scope-any/", self.ACCESS_TOKEN)
 
     def test_invalid_scope(self):
-        self.failure_case("/scope/", self.ACCESS_TOKEN, detail=SCOPE_NOT_MATCHED)
+        self.failure_case(
+            "/scope/", self.ACCESS_TOKEN, detail=SCOPE_NOT_MATCHED, status=403
+        )
         self.success_case("/scope/no-error/", self.ACCESS_TOKEN)
 
     def test_malformed_token_for_scope(self):
@@ -134,24 +219,56 @@ class AccessTokenTestCase(BaseTestCloudAuth):
         self.success_case("/access/user/invalid/no-error", self.ACCESS_TOKEN)
 
 
-class IdTokenTestCase(BaseTestCloudAuth):
-    def success_case(self, path: str, token: str = None):
+def add_endpoint_for_idtoken(app: FastAPI, auth: Base) -> FastAPI:
+    t = auth.TESTAUTH
+
+    @app.get("/user/", response_model=t.valid_claim)
+    async def secure_user(current_user: t.valid_claim = Depends(t.ms_auth)):
+        return current_user
+
+    @app.get("/user/no-error/")
+    async def secure_user_no_error(
+        current_user: Optional[t.valid_claim] = Depends(t.ms_auth_ne),
+    ):
+        assert current_user is None
+
+    @app.get("/user/invalid/", response_model=t.invalid_claim)
+    async def invalid_userinfo(
+        current_user: t.invalid_claim = Depends(t.invalid_ms_auth),
+    ):
+        return current_user  # pragma: no cover
+
+    @app.get("/user/invalid/no-error/")
+    async def invalid_userinfo_no_error(
+        current_user: Optional[t.invalid_claim] = Depends(t.invalid_ms_auth_ne),
+    ):
+        assert current_user is None
+
+    return app
+
+
+class IdTokenTestCase(BaseTestCase):
+    verify_id_token = True
+
+    def success_case(self, path: str, token: str = "") -> Response:
         return assert_get_response(
             client=self.client, endpoint=path, token=token, status_code=200
         )
 
-    def user_success_case(self, path: str, token: str = None):
+    def user_success_case(self, path: str, token: str = "") -> Response:
         response = self.success_case(path, token)
         for value in response.json().values():
             assert value, f"{response.content} failed to parse"
         return response
 
-    def failure_case(self, path: str, token: str = None, detail=""):
+    def failure_case(
+        self, path: str, token: str = "", detail: str = "", status=401
+    ) -> Response:
         return assert_get_response(
             client=self.client,
             endpoint=path,
             token=token,
-            status_code=403,
+            status_code=status,
             detail=detail,
         )
 

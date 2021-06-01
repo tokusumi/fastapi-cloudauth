@@ -170,6 +170,7 @@ $ poetry run bash scripts/test_local.sh -m auth0
 
 the following values are required:
 
+* Firebase project ID: the unique identifier for your Firebase project, which can be found in the URL of that project's console.
 * Web API key: Required for login your Firebase Authentication service with http request (for getting id token). ex) `39digit-hash`
 * base64 encoding credential: Required for Firebase Admin SDK. ex) `base64-encoding-large-string`
 
@@ -206,6 +207,7 @@ The string in `base64-credential` is "base64 encoding credential"
 Add these values in `load_env.sh` as follows (replace \<str\> with your value acquired above):
 
 ```
+export FIREBASE_PROJECTID=<Firebase Project ID>
 export FIREBASE_APIKEY=<Web API key>
 export FIREBASE_BASE64_CREDENCIALS=<base64 encoding credential>
 ```

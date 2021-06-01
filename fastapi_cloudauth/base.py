@@ -4,7 +4,7 @@ from typing import Any, Dict, List, Optional, Type, Union
 
 from fastapi import Depends, HTTPException
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
-from jose import jwt  # type: ignore
+from jose import jwt
 from pydantic import BaseModel
 from pydantic.error_wrappers import ValidationError
 from starlette import status
@@ -12,6 +12,7 @@ from starlette import status
 from fastapi_cloudauth.messages import NOT_AUTHENTICATED, NOT_VALIDATED_CLAIMS
 from fastapi_cloudauth.verification import (
     JWKS,
+    ExtraVerifier,
     JWKsVerifier,
     ScopedJWKsVerifier,
     Verifier,
@@ -70,7 +71,7 @@ class CloudAuth(ABC):
         if http_auth is None:
             if self.verifier.auto_error:
                 raise HTTPException(
-                    status_code=status.HTTP_403_FORBIDDEN, detail=NOT_AUTHENTICATED
+                    status_code=status.HTTP_401_UNAUTHORIZED, detail=NOT_AUTHENTICATED
                 )
             else:
                 return None
@@ -94,13 +95,22 @@ class UserInfoAuth(CloudAuth):
         jwks: JWKS,
         *,
         user_info: Optional[Type[BaseModel]] = None,
+        audience: Optional[Union[str, List[str]]] = None,
+        issuer: Optional[str] = None,
         auto_error: bool = True,
+        extra: Optional[ExtraVerifier] = None,
         **kwargs: Any
     ) -> None:
 
         self.user_info = user_info
         self.auto_error = auto_error
-        self._verifier = JWKsVerifier(jwks, auto_error=self.auto_error)
+        self._verifier = JWKsVerifier(
+            jwks,
+            audience=audience,
+            issuer=issuer,
+            auto_error=self.auto_error,
+            extra=extra,
+        )
 
     @property
     def verifier(self) -> JWKsVerifier:
@@ -159,7 +169,8 @@ class UserInfoAuth(CloudAuth):
         except ValidationError:
             if self.auto_error:
                 raise HTTPException(
-                    status_code=status.HTTP_403_FORBIDDEN, detail=NOT_VALIDATED_CLAIMS,
+                    status_code=status.HTTP_401_UNAUTHORIZED,
+                    detail=NOT_VALIDATED_CLAIMS,
                 )
             else:
                 return None
@@ -176,11 +187,14 @@ class ScopedAuth(CloudAuth):
     def __init__(
         self,
         jwks: JWKS,
+        audience: Optional[Union[str, List[str]]] = None,
+        issuer: Optional[str] = None,
         user_info: Optional[Type[BaseModel]] = None,
         scope_name: Optional[List[str]] = None,
         scope_key: Optional[str] = None,
         auto_error: bool = True,
         op: Operator = Operator._all,
+        extra: Optional[ExtraVerifier] = None,
     ):
         self.user_info = user_info
         self.auto_error = auto_error
@@ -190,10 +204,13 @@ class ScopedAuth(CloudAuth):
 
         self._verifier = ScopedJWKsVerifier(
             jwks,
+            audience=audience,
+            issuer=issuer,
             scope_name=self._scope_name,
             op=op,
             scope_key=self._scope_key,
             auto_error=self.auto_error,
+            extra=extra,
         )
 
     @property
@@ -299,7 +316,8 @@ class ScopedAuth(CloudAuth):
         except ValidationError:
             if self.auto_error:
                 raise HTTPException(
-                    status_code=status.HTTP_403_FORBIDDEN, detail=NOT_VALIDATED_CLAIMS,
+                    status_code=status.HTTP_401_UNAUTHORIZED,
+                    detail=NOT_VALIDATED_CLAIMS,
                 )
             else:
                 return None
