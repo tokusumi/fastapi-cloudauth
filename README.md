@@ -244,7 +244,7 @@ async def detail(user: CustomAuth0Claims = Depends(get_user_detail)):
 
 ### Raw payload
 
-If you doesn't require `pydantic` data serialization (validation), `FastAPI-CloudAuth` has a option to extract raw payload.
+If you don't require `pydantic` data serialization (validation), `FastAPI-CloudAuth` has a option to extract raw payload.
 
 All you need is:
 
