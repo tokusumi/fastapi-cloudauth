@@ -2,6 +2,7 @@ from abc import ABC, abstractmethod
 from calendar import timegm
 from copy import deepcopy
 from datetime import datetime
+from email.utils import parsedate_to_datetime
 from enum import Enum
 from typing import Any, Dict, List, Optional, Union
 
@@ -46,9 +47,11 @@ class ExtraVerifier(ABC):
 
 class JWKS:
     keys: Dict[str, Key]
+    expires: Optional[datetime]
 
-    def __init__(self, keys: Dict[str, Key]):
+    def __init__(self, keys: Dict[str, Key], expires: Optional[datetime] = None):
         self.keys = keys
+        self.expires = expires
 
     @classmethod
     def fromurl(cls, url: str) -> "JWKS":
@@ -66,12 +69,17 @@ class JWKS:
         """
         get and parse json into jwks from endpoint for Firebase,
         """
-        certs = requests.get(url).json()
+        response = requests.get(url)
+        if "expires" in response.headers:
+            expires = parsedate_to_datetime(response.headers["expires"])
+        else:
+            expires = None
+        certs = response.json()
         keys = {
             kid: jwk.construct(publickey, algorithm="RS256")
             for kid, publickey in certs.items()
         }
-        return cls(keys=keys)
+        return cls(keys=keys, expires=expires)
 
 
 class JWKsVerifier(Verifier):
