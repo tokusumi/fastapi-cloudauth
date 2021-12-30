@@ -8,8 +8,8 @@ fastapi-cloudauth standardizes and simplifies the integration between FastAPI an
 
 ## Features
 
-* [X] Verify access/id token: standard JWT validation (signature, expiration), token audience claims and etc.
-* [X] Verify permissions based on scope (or groups) within access token and Extract user info 
+* [X] Verify access/id token: standard JWT validation (signature, expiration), token audience claims, etc.
+* [X] Verify permissions based on scope (or groups) within access token and extract user info 
 * [X] Get the detail of login user info (name, email, etc.) within ID token
 * [X] Dependency injection for verification/getting user, powered by [FastAPI](https://github.com/tiangolo/fastapi)
 * [X] Support for:
@@ -29,17 +29,17 @@ $ pip install fastapi-cloudauth
 
 ## Example (AWS Cognito)
 
-### Pre-requirement
+### Pre-requirements
 
 * Check `region`, `userPoolID` and `AppClientID` of AWS Cognito that you manage to
-* Create a user assigned `read:users` permission in AWS Cognito 
+* Create a user's assigned `read:users` permission in AWS Cognito 
 * Get Access/ID token for the created user
 
-NOTE: access token is valid for verification, scope-based authentication and getting user info (optional). ID token is valid for verification and getting full user info from claims.
+NOTE: access token is valid for verification, scope-based authentication, and getting user info (optional). ID token is valid for verification and getting full user info from claims.
 
 ### Create it
 
-Create a file main.py with:
+Create a *main.py* file with the following content:
 
 ```python3
 import os
@@ -100,7 +100,7 @@ Go to http://127.0.0.1:8000/docs.
 
 You will see the automatic interactive API documentation (provided by Swagger UI).
 
-`Authorize` :unlock: button can be available at the endpoints injected dependency.
+`Authorize` :unlock: button can be available at the endpoint's injected dependency.
 
 You can supply a token and try the endpoint interactively.
 
@@ -189,7 +189,7 @@ def secure_user(current_user: FirebaseClaims = Depends(get_current_user)):
     return f"Hello, {current_user.user_id}"
 ```
 
-Try to run the server and see interactive UI in the same way.
+Try to run the server and see the interactive UI in the same way.
 
 ## Additional User Information
 
@@ -197,7 +197,7 @@ We can get values for the current user from access/ID token by writing a few lin
 
 ### Custom Claims
 
-For Auth0, the ID token contains extra values as follows (Ref at [Auth0 official doc](https://auth0.com/docs/tokens)):
+For Auth0, the ID token contains the following extra values (Ref at [Auth0 official doc](https://auth0.com/docs/tokens)):
 
 ```json
 {
@@ -232,7 +232,7 @@ get_current_user = Auth0CurrentUser(domain=DOMAIN, client_id=CLIENTID)
 get_current_user.user_info = CustomAuth0Claims  # override user info model with a custom one.
 ```
 
-Or, we can also set new custom claims as follows:
+Or, we can set new custom claims as follows:
 
 ```python3
 get_user_detail = get_current_user.claim(CustomAuth0Claims)
@@ -244,7 +244,7 @@ async def detail(user: CustomAuth0Claims = Depends(get_user_detail)):
 
 ### Raw payload
 
-If you doesn't require `pydantic` data serialization (validation), `FastAPI-CloudAuth` has a option to extract raw payload.
+If you don't require `pydantic` data serialization (validation), `FastAPI-CloudAuth` has an option to extract the raw payload.
 
 All you need is:
 
@@ -283,4 +283,4 @@ def api_any_scope():
 
 ## Development - Contributing
 
-Please read the [CONTRIBUTING](../CONTRIBUTING.md) how to setup development environment and testing.
+Please read [CONTRIBUTING](./CONTRIBUTING.md) for how to set up the development environment and testing.
