@@ -22,10 +22,10 @@ class FirebaseCurrentUser(UserInfoAuth):
     """
 
     user_info = FirebaseClaims
+    firebase_keys_url = "https://www.googleapis.com/robot/v1/metadata/x509/securetoken@system.gserviceaccount.com"
 
     def __init__(self, project_id: str, *args: Any, **kwargs: Any):
-        url = "https://www.googleapis.com/robot/v1/metadata/x509/securetoken@system.gserviceaccount.com"
-        jwks = JWKS.firebase(url)
+        jwks = JWKS.firebase(self.firebase_keys_url)
 
         super().__init__(
             jwks,
