@@ -1,5 +1,6 @@
 from abc import ABC, abstractmethod
 from copy import deepcopy
+from datetime import datetime
 from typing import Any, Dict, List, Optional, Type, Union
 
 from fastapi import Depends, HTTPException
@@ -111,6 +112,7 @@ class UserInfoAuth(CloudAuth):
             auto_error=self.auto_error,
             extra=extra,
         )
+        self._keys_expire = jwks.expires
 
     @property
     def verifier(self) -> JWKsVerifier:
@@ -145,6 +147,12 @@ class UserInfoAuth(CloudAuth):
         clone.user_info = schema
         return clone
 
+    async def refresh_keys(self) -> None:
+        """Refresh the JWKS keys. Called when the JWKS is expired.
+        Does nothing by default. Override this method to implement key refreshing.
+        """
+        pass
+
     async def call(
         self, http_auth: HTTPAuthorizationCredentials
     ) -> Optional[Union[BaseModel, Dict[str, Any]]]:
@@ -159,6 +167,11 @@ class UserInfoAuth(CloudAuth):
         ```
         """
         claims: Dict[str, Any] = jwt.get_unverified_claims(http_auth.credentials)
+
+        if self._keys_expire:
+            current_time = datetime.now(tz=self._keys_expire.tzinfo)
+            if current_time >= self._keys_expire:
+                await self.refresh_keys()
 
         if not self.user_info:
             return claims
