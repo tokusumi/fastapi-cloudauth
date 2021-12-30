@@ -70,8 +70,15 @@ class JWKS:
         get and parse json into jwks from endpoint for Firebase,
         """
         response = requests.get(url)
-        if "expires" in response.headers:
-            expires = parsedate_to_datetime(response.headers["expires"])
+        expires_header = response.headers.get("expires")
+        expires: Optional[datetime]
+        if expires_header:
+            try:
+                expires = parsedate_to_datetime(expires_header)
+            except ValueError:
+                # Guard against an invalid header value and do not set an expiry.
+                # This won't happen unless Firebase messes up...
+                expires = None
         else:
             expires = None
         certs = response.json()
