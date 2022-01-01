@@ -2,18 +2,26 @@ from typing import Any, Dict, Optional
 
 import requests
 from fastapi.exceptions import HTTPException
+from jose import jwk
+from jose.backends.base import Key
 from pydantic import BaseModel, Field
 from starlette import status
 
 from .base import ScopedAuth, UserInfoAuth
 from .messages import NOT_VERIFIED
-from .verification import JWKS, ExtraVerifier
+from .verification import JWKS as BaseJWKS
+from .verification import ExtraVerifier
 
 
 def get_issuer(domain: str) -> str:
     url = f"https://{domain}/.well-known/openid-configuration"
     openid_config = requests.get(url).json()
     return str(openid_config.get("issuer", ""))
+
+
+class JWKS(BaseJWKS):
+    def _construct(self, jwks: Dict[str, Any]) -> Dict[str, Key]:
+        return {_jwk["kid"]: jwk.construct(_jwk) for _jwk in jwks.get("keys", [])}
 
 
 class Auth0(ScopedAuth):
@@ -32,7 +40,7 @@ class Auth0(ScopedAuth):
         auto_error: bool = True,
     ):
         url = f"https://{domain}/.well-known/jwks.json"
-        jwks = JWKS.fromurl(url)
+        jwks = JWKS(url=url)
         if issuer is None:
             issuer = get_issuer(domain)
         super().__init__(
@@ -67,7 +75,7 @@ class Auth0CurrentUser(UserInfoAuth):
         **kwargs: Any,
     ):
         url = f"https://{domain}/.well-known/jwks.json"
-        jwks = JWKS.fromurl(url)
+        jwks = JWKS(url=url)
         if issuer is None:
             issuer = get_issuer(domain)
         super().__init__(

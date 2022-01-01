@@ -1,9 +1,14 @@
+import asyncio
 from datetime import datetime, timedelta
+from email.utils import format_datetime, parsedate_to_datetime
+from typing import Any, Dict, Optional
 
 import pytest
 from fastapi import HTTPException
 from fastapi.security import HTTPAuthorizationCredentials
 from jose import jwt
+from jose.backends.base import Key
+from requests.models import Response
 from starlette.status import HTTP_401_UNAUTHORIZED
 
 from fastapi_cloudauth import messages
@@ -18,30 +23,117 @@ from .helpers import _assert_verifier, _assert_verifier_no_error
 
 
 @pytest.mark.unittest
-def test_malformed_token_handling():
+@pytest.mark.asyncio
+async def test_malformed_token_handling():
     http_auth_with_malformed_token = HTTPAuthorizationCredentials(
         scheme="a", credentials="malformed-token",
     )
 
-    verifier = JWKsVerifier(jwks=JWKS(keys=[]))
+    verifier = JWKsVerifier(jwks=JWKS.null())
     with pytest.raises(HTTPException):
-        verifier._get_publickey(http_auth_with_malformed_token)
+        await verifier._get_publickey(http_auth_with_malformed_token)
     with pytest.raises(HTTPException):
-        verifier.verify_token(http_auth_with_malformed_token)
+        await verifier.verify_token(http_auth_with_malformed_token)
 
-    verifier = JWKsVerifier(jwks=JWKS(keys=[]), auto_error=False)
-    assert not verifier._get_publickey(http_auth_with_malformed_token)
-    assert not verifier.verify_token(http_auth_with_malformed_token)
+    verifier = JWKsVerifier(jwks=JWKS.null(), auto_error=False)
+    assert not await verifier._get_publickey(http_auth_with_malformed_token)
+    assert not await verifier.verify_token(http_auth_with_malformed_token)
 
-    verifier = ScopedJWKsVerifier(jwks=JWKS(keys=[]))
+    verifier = ScopedJWKsVerifier(jwks=JWKS.null())
     with pytest.raises(HTTPException):
         verifier._verify_scope(http_auth_with_malformed_token)
     with pytest.raises(HTTPException):
-        verifier.verify_token(http_auth_with_malformed_token)
+        await verifier.verify_token(http_auth_with_malformed_token)
 
-    verifier = ScopedJWKsVerifier(jwks=JWKS(keys=[]), auto_error=False)
+    verifier = ScopedJWKsVerifier(jwks=JWKS.null(), auto_error=False)
     assert not verifier._verify_scope(http_auth_with_malformed_token)
-    assert not verifier.verify_token(http_auth_with_malformed_token)
+    assert not await verifier.verify_token(http_auth_with_malformed_token)
+
+
+class DummyResp(Response):
+    def __init__(self, expires: datetime) -> None:
+        super().__init__()
+        self.headers["Expires"] = format_datetime(expires)
+
+    @property
+    def json(self):
+        return lambda: {}
+
+
+class DummyDecodeJWKS(JWKS):
+    def _construct(self, jwks: Dict[str, Any]) -> Dict[str, Key]:
+        return {}
+
+    def _set_expiration(self, resp: Response) -> Optional[datetime]:
+        expires_header = resp.headers.get("expires")
+        return parsedate_to_datetime(expires_header)
+
+
+def parse(t: datetime) -> datetime:
+    return parsedate_to_datetime(format_datetime(t))
+
+
+@pytest.mark.unittest
+@pytest.mark.asyncio
+async def test_refresh_jwks(mocker):
+    too_short_exp = datetime.now()
+    mocker.patch(
+        "requests.get", return_value=DummyResp(too_short_exp),
+    )
+    _jwks = DummyDecodeJWKS(url="http://")
+
+    # expires is stored
+    assert _jwks.expires == parse(too_short_exp)
+
+    # time goes...
+    new_exp = too_short_exp + timedelta(days=10)
+    mocker.patch(
+        "requests.get", return_value=DummyResp(new_exp),
+    )
+    await _jwks.get_publickey("")
+    # expired is refreshed
+    assert parse(too_short_exp) != parse(new_exp)
+    assert _jwks.expires == parse(new_exp)
+
+
+class DummyDecodeCntJWKS(JWKS):
+    def __init__(self, url: str = ""):
+        self._counter = 0
+        super().__init__(url=url)
+
+    def _construct(self, jwks: Dict[str, Any]) -> Dict[str, Key]:
+        asyncio.sleep(0.5)
+        self._counter += 1
+        return {"cnt": self._counter}
+
+    def _set_expiration(self, resp: Response) -> Optional[datetime]:
+        expires_header = resp.headers.get("expires")
+        return parsedate_to_datetime(expires_header)
+
+
+@pytest.mark.unittest
+@pytest.mark.asyncio
+async def test_refresh_jwks_multiple(mocker):
+    too_short_exp = datetime.now()
+    mocker.patch(
+        "requests.get", return_value=DummyResp(too_short_exp),
+    )
+    _jwks = DummyDecodeCntJWKS(url="http://")
+
+    # time goes...
+    new_exp = too_short_exp + timedelta(days=10)
+    mocker.patch(
+        "requests.get", return_value=DummyResp(new_exp),
+    )
+    # multiple expired access
+    res = await asyncio.gather(
+        _jwks.get_publickey("cnt"),
+        _jwks.get_publickey("cnt"),
+        _jwks.get_publickey("cnt"),
+    )
+    # jwks was refreshed only at once (counter incremented once).
+    # all three return publickey from refreshed jwks.
+    assert list(res) == [2, 2, 2]
 
 
 @pytest.mark.unittest
@@ -55,7 +147,7 @@ def test_verify_scope_exeption(mocker):
 
     # trivial scope
     verifier = ScopedJWKsVerifier(
-        jwks=JWKS(keys=[]), scope_key=scope_key, scope_name=None
+        jwks=JWKS.null(), scope_key=scope_key, scope_name=None
     )
     assert verifier._verify_scope(http_auth)
 
@@ -65,13 +157,13 @@ def test_verify_scope_exeption(mocker):
         return_value={"dummy key": 100},
     )
     verifier = ScopedJWKsVerifier(
-        jwks=JWKS(keys=[]), scope_key=scope_key, scope_name=["read:test"]
+        jwks=JWKS.null(), scope_key=scope_key, scope_name=["read:test"]
     )
     with pytest.raises(HTTPException):
         verifier._verify_scope(http_auth)
     # auto_error is False
     verifier = ScopedJWKsVerifier(
-        jwks=JWKS(keys=[]),
+        jwks=JWKS.null(),
         scope_key=scope_key,
         scope_name=["read:test"],
         auto_error=False,
@@ -92,7 +184,7 @@ def test_scope_match_all(mocker, scopes):
         "fastapi_cloudauth.verification.jwt.get_unverified_claims",
         return_value={"dummy key": scopes},
     )
-    jwks = JWKS(keys=[])
+    jwks = JWKS.null()
 
     # api scope < user scope
     verifier = ScopedJWKsVerifier(
@@ -141,7 +233,7 @@ def test_scope_match_any(mocker, scopes):
         "fastapi_cloudauth.verification.jwt.get_unverified_claims",
         return_value={"dummy key": scopes},
     )
-    jwks = JWKS(keys=[])
+    jwks = JWKS.null()
 
     # api scope < user scope
     verifier = ScopedJWKsVerifier(
@@ -196,8 +288,8 @@ def test_scope_match_any(mocker, scopes):
 
 @pytest.mark.unittest
 def test_verify_token():
-    verifier = JWKsVerifier(jwks=JWKS(keys=[]))
-    verifier_no_error = JWKsVerifier(jwks=JWKS(keys=[]), auto_error=False)
+    verifier = JWKsVerifier(jwks=JWKS.null())
+    verifier_no_error = JWKsVerifier(jwks=JWKS.null(), auto_error=False)
 
     # correct
     token = jwt.encode(

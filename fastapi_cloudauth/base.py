@@ -76,7 +76,7 @@ class CloudAuth(ABC):
             else:
                 return None
 
-        is_verified = self.verifier.verify_token(http_auth)
+        is_verified = await self.verifier.verify_token(http_auth)
         if not is_verified:
             return None
 
