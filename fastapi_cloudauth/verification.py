@@ -1,15 +1,15 @@
 from abc import ABC, abstractmethod
+from asyncio import Event
 from calendar import timegm
 from copy import deepcopy
 from datetime import datetime
-from email.utils import parsedate_to_datetime
 from enum import Enum
-from typing import Any, Dict, List, Optional, Union
+from typing import Any, Dict, List, Optional, Type, Union
 
 import requests
 from fastapi import HTTPException
 from fastapi.security import HTTPAuthorizationCredentials
-from jose import jwk, jwt
+from jose import jwt
 from jose.backends.base import Key
 from jose.exceptions import JWTError
 from jose.utils import base64url_decode
@@ -30,7 +30,7 @@ class Verifier(ABC):
         ...  # pragma: no cover
 
     @abstractmethod
-    def verify_token(self, http_auth: HTTPAuthorizationCredentials) -> bool:
+    async def verify_token(self, http_auth: HTTPAuthorizationCredentials) -> bool:
         ...  # pragma: no cover
 
     @abstractmethod
@@ -46,47 +46,90 @@ class ExtraVerifier(ABC):
 
 
 class JWKS:
-    keys: Dict[str, Key]
-    expires: Optional[datetime]
-
-    def __init__(self, keys: Dict[str, Key], expires: Optional[datetime] = None):
-        self.keys = keys
-        self.expires = expires
-
-    @classmethod
-    def fromurl(cls, url: str) -> "JWKS":
+    def __init__(
+        self, url: str = "", fixed_keys: Optional[Dict[str, Key]] = None,
+    ):
+        """Handle the JSON Web Key Set (JWKS), query and refresh ...
+        Args:
+            url: Provider JWKS URL. See official doc for what you want to connect.
+            fixed_keys: (For Test) Set fixed jwks. if passed not None, make it invalid connection between social provider
         """
-        get and parse json into jwks from endpoint as follows,
-        https://xxx/.well-known/jwks.json
-        """
-        jwks = requests.get(url).json()
+        self.__url = url
+        self.__fixed_keys = fixed_keys
+        self.__keys: Dict[str, Key] = {}
+        self.__expires: Optional[datetime] = None
+        self.__refreshing = Event()
+        self.__refreshing.set()
+        if self.__fixed_keys is None:
+            # query jwks from provider without mutex
+            self._refresh_keys()
 
-        jwks = {_jwk["kid"]: jwk.construct(_jwk) for _jwk in jwks.get("keys", [])}
-        return cls(keys=jwks)
+    async def get_publickey(self, kid: str) -> Optional[Key]:
+        if self.__fixed_keys is not None:
+            return self.__fixed_keys.get(kid)
 
-    @classmethod
-    def firebase(cls, url: str) -> "JWKS":
-        """
-        get and parse json into jwks from endpoint for Firebase,
-        """
-        response = requests.get(url)
-        expires_header = response.headers.get("expires")
-        expires: Optional[datetime]
-        if expires_header:
-            try:
-                expires = parsedate_to_datetime(expires_header)
-            except ValueError:
-                # Guard against an invalid header value and do not set an expiry.
-                # This won't happen unless Firebase messes up...
-                expires = None
+        if self.__expires is not None:
+            # Check expiration
+            current_time = datetime.now(tz=self.__expires.tzinfo)
+            if current_time >= self.__expires:
+                await self.refresh_keys()
+
+        return self.__keys.get(kid)
+
+    async def refresh_keys(self) -> bool:
+        """refresh jwks process"""
+        if self.__refreshing.is_set():
+            # refresh jwks
+            # Ensure only one key refresh can happen at once.
+            # This prevents a dogpile of requests the second the keys expire
+            # from causing a bunch of refreshes (each one is an http request).
+            self.__refreshing.clear()
+
+            # Re-query the keys from provider
+            self._refresh_keys()
+
+            # Remove the lock.
+            self.__refreshing.set()
         else:
-            expires = None
-        certs = response.json()
-        keys = {
-            kid: jwk.construct(publickey, algorithm="RS256")
-            for kid, publickey in certs.items()
-        }
-        return cls(keys=keys, expires=expires)
+            # Other task for refresh is still working.
+            # Only wait for that to pick publickey from the latest JWKS.
+            # (Now, this line is not reachable because current re-quering is not awaitable)
+            await self.__refreshing.wait()
+
+        return True
+
+    def _refresh_keys(self) -> None:
+        """Core refresh jwks process
+        NOTE: Call this directly if you does not require mutex on refresh process
+        """
+        # Re-query the keys from provider.
+        # NOTE (For Firebase Auth): The expires comes from an http header which is supposed to
+        # be set to a time long before the keys are no longer in use.
+        # This allows gradual roll-out of the keys and should prevent any
+        # request from failing.
+        # The only scenario which will result in failing requests is if
+        # there are zero requests for the entire duration of the roll-out
+        # (observed to be around 1 week), followed by a burst of multiple
+        # requests at once.
+        jwks_resp = requests.get(self.__url)
+
+        # Reset the keys and the expiry date.
+        self.__keys = self._construct(jwks_resp.json())
+        self.__expires = self._set_expiration(jwks_resp)
+
+    def _construct(self, jwks: Dict[str, Any]) -> Dict[str, Key]:
+        raise NotImplementedError  # pragma: no cover
+
+    def _set_expiration(self, resp: requests.Response) -> Optional[datetime]:
+        return None
+
+    @classmethod
+    def null(cls: Type["JWKS"]) -> "JWKS":
+        return cls(url="", fixed_keys={})
+
+    @property
+    def expires(self) -> Optional[datetime]:
+        return self.__expires
 
 
 class JWKsVerifier(Verifier):
@@ -103,7 +146,7 @@ class JWKsVerifier(Verifier):
         """
         auto-error: if False, return payload as b'null' for invalid token.
         """
-        self._jwks_to_key = jwks.keys
+        self._jwks = jwks
         self._auto_error = auto_error
         self._extra_verifier = extra
         self._aud = audience
@@ -117,7 +160,9 @@ class JWKsVerifier(Verifier):
     def auto_error(self, auto_error: bool) -> None:
         self._auto_error = auto_error
 
-    def _get_publickey(self, http_auth: HTTPAuthorizationCredentials) -> Optional[Key]:
+    async def _get_publickey(
+        self, http_auth: HTTPAuthorizationCredentials
+    ) -> Optional[Key]:
         token = http_auth.credentials
 
         try:
@@ -138,7 +183,7 @@ class JWKsVerifier(Verifier):
                 )
             else:
                 return None
-        publickey: Optional[Key] = self._jwks_to_key.get(kid)
+        publickey = await self._jwks.get_publickey(kid)
         if not publickey:
             if self.auto_error:
                 raise HTTPException(
@@ -200,9 +245,9 @@ class JWKsVerifier(Verifier):
 
         return is_verified
 
-    def verify_token(self, http_auth: HTTPAuthorizationCredentials) -> bool:
+    async def verify_token(self, http_auth: HTTPAuthorizationCredentials) -> bool:
         # check the signature
-        public_key = self._get_publickey(http_auth)
+        public_key = await self._get_publickey(http_auth)
         if not public_key:
             # error handling is included in self.get_publickey
             return False
@@ -222,11 +267,11 @@ class JWKsVerifier(Verifier):
         return is_verified
 
     def clone(self, instance: "JWKsVerifier") -> "JWKsVerifier":  # type: ignore[override]
-        _jwks_to_key = instance._jwks_to_key
-        instance._jwks_to_key = {}
+        _jwks = instance._jwks
+        instance._jwks = None  # type: ignore
         clone = deepcopy(instance)
-        clone._jwks_to_key = _jwks_to_key
-        instance._jwks_to_key = _jwks_to_key
+        clone._jwks = _jwks
+        instance._jwks = _jwks
         return clone
 
 
@@ -304,8 +349,8 @@ class ScopedJWKsVerifier(JWKsVerifier):
             return False
         return True
 
-    def verify_token(self, http_auth: HTTPAuthorizationCredentials) -> bool:
-        is_verified = super().verify_token(http_auth)
+    async def verify_token(self, http_auth: HTTPAuthorizationCredentials) -> bool:
+        is_verified = await super().verify_token(http_auth)
         if not is_verified:
             return False
 

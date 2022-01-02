@@ -10,7 +10,7 @@ from fastapi_cloudauth.verification import JWKS
 @pytest.mark.unittest
 def test_raise_error_invalid_set_scope():
     # scope_key is not declaired
-    token_verifier = ScopedAuth(jwks=JWKS(keys=[]))
+    token_verifier = ScopedAuth(jwks=JWKS.null())
     with pytest.raises(AttributeError):
         # raise AttributeError for invalid instanse attributes wrt scope
         token_verifier.scope("read:test")
@@ -19,7 +19,7 @@ def test_raise_error_invalid_set_scope():
 @pytest.mark.unittest
 def test_return_instance_with_scope():
     # scope method return new instance to give it for Depends.
-    verifier = ScopedAuth(jwks=JWKS(keys=[]))
+    verifier = ScopedAuth(jwks=JWKS.null())
     # must set scope_key (Inherit ScopedAuth and override scope_key attribute)
     scope_key = "dummy key"
     verifier.scope_key = scope_key
@@ -32,9 +32,7 @@ def test_return_instance_with_scope():
     assert obj.verifier.scope_name == set(
         [scope_name]
     ), "Must convert scope name into set."
-    assert (
-        obj.verifier._jwks_to_key == verifier.verifier._jwks_to_key
-    ), "return cloned objects"
+    assert obj.verifier._jwks == verifier.verifier._jwks, "return cloned objects"
     assert (
         obj.verifier.auto_error == verifier.verifier.auto_error
     ), "return cloned objects"
@@ -54,7 +52,7 @@ def test_validation_scope(mocker, scopes):
         "fastapi_cloudauth.verification.jwt.get_unverified_claims",
         return_value={"dummy key": scopes},
     )
-    verifier = ScopedAuth(jwks=JWKS(keys=[]))
+    verifier = ScopedAuth(jwks=JWKS.null())
     scope_key = "dummy key"
     verifier.scope_key = scope_key
 
@@ -88,7 +86,7 @@ async def test_forget_def_user_info(auth):
         credentials="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxMjM0NTY3ODkwIiwibmFtZSI6Im5hbWUiLCJpYXQiOjE1MTYyMzkwMjJ9.3ZEDmhWNZWDbJDPDlZX_I3oaalNYXdoT-bKLxIxQK4U",
     )
     """If `.user_info` is None, return raw payload"""
-    get_current_user = auth(jwks=JWKS(keys=[]))
+    get_current_user = auth(jwks=JWKS.null())
     assert get_current_user.user_info is None
     res = await get_current_user.call(dummy_http_auth)
     assert res == {"sub": "1234567890", "name": "name", "iat": 1516239022}
@@ -121,7 +119,7 @@ async def test_assign_user_info(auth):
         credentials="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxMjM0NTY3ODkwIiwibmFtZSI6Im5hbWUiLCJpYXQiOjE1MTYyMzkwMjJ9.3ZEDmhWNZWDbJDPDlZX_I3oaalNYXdoT-bKLxIxQK4U",
     )
 
-    user = auth(jwks=JWKS(keys=[]), user_info=IatSchema)
+    user = auth(jwks=JWKS.null(), user_info=IatSchema)
     assert await user.call(dummy_http_auth) == IatSchema(iat=1516239022)
 
     assert await user.claim(SubSchema).call(dummy_http_auth) == SubSchema(
@@ -146,11 +144,11 @@ async def test_extract_raw_user_info(auth):
     class NameSchema(BaseModel):
         name: str
 
-    get_current_user = auth(jwks=JWKS(keys=[]), user_info=NameSchema)
+    get_current_user = auth(jwks=JWKS.null(), user_info=NameSchema)
     get_current_user.user_info = None
     res = await get_current_user.call(dummy_http_auth)
     assert res == {"sub": "1234567890", "name": "name", "iat": 1516239022}
 
-    get_current_user = auth(jwks=JWKS(keys=[]), user_info=NameSchema)
+    get_current_user = auth(jwks=JWKS.null(), user_info=NameSchema)
     res = await get_current_user.claim(None).call(dummy_http_auth)
     assert res == {"sub": "1234567890", "name": "name", "iat": 1516239022}
