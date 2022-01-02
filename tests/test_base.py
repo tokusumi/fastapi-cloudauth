@@ -78,7 +78,8 @@ def test_validation_scope(mocker, scopes):
 @pytest.mark.unittest
 @pytest.mark.asyncio
 @pytest.mark.parametrize(
-    "auth", [UserInfoAuth, ScopedAuth],
+    "auth",
+    [UserInfoAuth, ScopedAuth],
 )
 async def test_forget_def_user_info(auth):
     dummy_http_auth = HTTPAuthorizationCredentials(
@@ -95,7 +96,8 @@ async def test_forget_def_user_info(auth):
 @pytest.mark.unittest
 @pytest.mark.asyncio
 @pytest.mark.parametrize(
-    "auth", [UserInfoAuth, ScopedAuth],
+    "auth",
+    [UserInfoAuth, ScopedAuth],
 )
 async def test_assign_user_info(auth):
     """three way to set user info schema
@@ -133,7 +135,8 @@ async def test_assign_user_info(auth):
 @pytest.mark.unittest
 @pytest.mark.asyncio
 @pytest.mark.parametrize(
-    "auth", [UserInfoAuth, ScopedAuth],
+    "auth",
+    [UserInfoAuth, ScopedAuth],
 )
 async def test_extract_raw_user_info(auth):
     dummy_http_auth = HTTPAuthorizationCredentials(

@@ -28,7 +28,7 @@ classifiers = [
 python = ">=3.6.2,<4.0"
 fastapi = ">= 0.60.1, < 1.0"
 python-jose = {version = ">=3.3.0,<4.0.0", extras = ["cryptography"]}
-requests = "^2.24.0"
+requests = ">=2.24.0,<3.0.0"
 
 [tool.poetry.dev-dependencies]
 pytest = ">=6.2.4,<7.0.0"
@@ -45,7 +45,8 @@ firebase-admin = ">=4.4.0"
 auth0-python = ">=3.14.0"
 pytest-mock = ">=3.5.1"
 pytest-asyncio = ">=0.14.0"
-autoflake = "^1.4"
+autoflake = ">=1.4.0,<2.0.0"
+types-requests = ">=2.26.3,<3.0.0"
 
 [tool.isort]
 profile = "black"

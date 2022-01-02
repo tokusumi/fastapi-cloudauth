@@ -61,7 +61,12 @@ class CognitoCurrentUser(UserInfoAuth):
     user_info = CognitoClaims
 
     def __init__(
-        self, region: str, userPoolId: str, client_id: str, *args: Any, **kwargs: Any,
+        self,
+        region: str,
+        userPoolId: str,
+        client_id: str,
+        *args: Any,
+        **kwargs: Any,
     ):
         url = f"https://cognito-idp.{region}.amazonaws.com/{userPoolId}/.well-known/jwks.json"
         jwks = JWKS(url=url)
