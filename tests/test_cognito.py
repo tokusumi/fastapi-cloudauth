@@ -64,7 +64,9 @@ def add_test_user(
             except ClientError:  # pragma: no cover
                 pass  # pragma: no cover
             client.admin_add_user_to_group(
-                UserPoolId=USERPOOLID, Username=username, GroupName=scope,
+                UserPoolId=USERPOOLID,
+                Username=username,
+                GroupName=scope,
             )
 
 
@@ -85,7 +87,8 @@ def get_cognito_token(
 
 
 def delete_cognito_user(
-    client, username=f"test_user{info.major}{info.minor}@example.com",
+    client,
+    username=f"test_user{info.major}{info.minor}@example.com",
 ):
     try:
         client.admin_delete_user(UserPoolId=USERPOOLID, Username=username)

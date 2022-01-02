@@ -55,7 +55,9 @@ def init() -> Auth0sdk:
     """
     get_token = GetToken(DOMAIN)
     token = get_token.client_credentials(
-        MGMT_CLIENTID, MGMT_CLIENT_SECRET, f"https://{DOMAIN}/api/v2/",
+        MGMT_CLIENTID,
+        MGMT_CLIENT_SECRET,
+        f"https://{DOMAIN}/api/v2/",
     )
     mgmt_api_token = token["access_token"]
 
@@ -111,7 +113,8 @@ def delete_user(
 
 
 def get_access_token(
-    username=f"test_user{info.major}{info.minor}@example.com", password="testPass1-",
+    username=f"test_user{info.major}{info.minor}@example.com",
+    password="testPass1-",
 ) -> Optional[str]:
     """
     Requirements:
@@ -143,7 +146,8 @@ def get_access_token(
 
 
 def get_id_token(
-    username=f"test_user{info.major}{info.minor}@example.com", password="testPass1-",
+    username=f"test_user{info.major}{info.minor}@example.com",
+    password="testPass1-",
 ) -> Optional[str]:
     """
     Requirements:

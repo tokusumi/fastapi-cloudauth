@@ -26,7 +26,8 @@ from .helpers import _assert_verifier, _assert_verifier_no_error
 @pytest.mark.asyncio
 async def test_malformed_token_handling():
     http_auth_with_malformed_token = HTTPAuthorizationCredentials(
-        scheme="a", credentials="malformed-token",
+        scheme="a",
+        credentials="malformed-token",
     )
 
     verifier = JWKsVerifier(jwks=JWKS.null())
@@ -89,7 +90,8 @@ def parse(t: datetime) -> datetime:
 async def test_refresh_jwks(mocker):
     too_short_exp = datetime.now()
     mocker.patch(
-        "requests.get", return_value=DummyResp(too_short_exp),
+        "requests.get",
+        return_value=DummyResp(too_short_exp),
     )
     _jwks = DummyDecodeJWKS(url="http://")
 
@@ -99,7 +101,8 @@ async def test_refresh_jwks(mocker):
     # time goes...
     new_exp = too_short_exp + timedelta(days=10)
     mocker.patch(
-        "requests.get", return_value=DummyResp(new_exp),
+        "requests.get",
+        return_value=DummyResp(new_exp),
     )
     await _jwks.get_publickey("")
     # expired is refreshed
@@ -127,14 +130,16 @@ class DummyDecodeCntJWKS(JWKS):
 async def test_refresh_jwks_multiple(mocker):
     too_short_exp = datetime.now()
     mocker.patch(
-        "requests.get", return_value=DummyResp(too_short_exp),
+        "requests.get",
+        return_value=DummyResp(too_short_exp),
     )
     _jwks = DummyDecodeCntJWKS(url="http://")
 
     # time goes...
     new_exp = too_short_exp + timedelta(days=10)
     mocker.patch(
-        "requests.get", return_value=DummyResp(new_exp),
+        "requests.get",
+        return_value=DummyResp(new_exp),
     )
     # multiple expired access
     res = await asyncio.gather(
@@ -154,7 +159,10 @@ def test_verify_scope_exeption(mocker):
         return_value={"dummy key": "read:test"},
     )
     scope_key = "dummy key"
-    http_auth = HTTPAuthorizationCredentials(scheme="a", credentials="dummy-token",)
+    http_auth = HTTPAuthorizationCredentials(
+        scheme="a",
+        credentials="dummy-token",
+    )
 
     # trivial scope
     verifier = ScopedJWKsVerifier(
@@ -184,11 +192,15 @@ def test_verify_scope_exeption(mocker):
 
 @pytest.mark.unittest
 @pytest.mark.parametrize(
-    "scopes", ["xxx:xxx yyy:yyy", ["xxx:xxx", "yyy:yyy"]],
+    "scopes",
+    ["xxx:xxx yyy:yyy", ["xxx:xxx", "yyy:yyy"]],
 )
 def test_scope_match_all(mocker, scopes):
     scope_key = "dummy key"
-    http_auth = HTTPAuthorizationCredentials(scheme="a", credentials="dummy-token",)
+    http_auth = HTTPAuthorizationCredentials(
+        scheme="a",
+        credentials="dummy-token",
+    )
 
     # check scope logic
     mocker.patch(
@@ -199,7 +211,10 @@ def test_scope_match_all(mocker, scopes):
 
     # api scope < user scope
     verifier = ScopedJWKsVerifier(
-        scope_name=["xxx:xxx"], jwks=jwks, scope_key=scope_key, auto_error=False,
+        scope_name=["xxx:xxx"],
+        jwks=jwks,
+        scope_key=scope_key,
+        auto_error=False,
     )
     assert verifier._verify_scope(http_auth)
 
@@ -233,11 +248,15 @@ def test_scope_match_all(mocker, scopes):
 
 @pytest.mark.unittest
 @pytest.mark.parametrize(
-    "scopes", ["xxx:xxx yyy:yyy", ["xxx:xxx", "yyy:yyy"]],
+    "scopes",
+    ["xxx:xxx yyy:yyy", ["xxx:xxx", "yyy:yyy"]],
 )
 def test_scope_match_any(mocker, scopes):
     scope_key = "dummy key"
-    http_auth = HTTPAuthorizationCredentials(scheme="a", credentials="dummy-token",)
+    http_auth = HTTPAuthorizationCredentials(
+        scheme="a",
+        credentials="dummy-token",
+    )
 
     # check scope logic
     mocker.patch(

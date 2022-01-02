@@ -49,7 +49,10 @@ def initialize():
 
     tmpdir = tempfile.TemporaryDirectory()
     credentials_path = os.path.join(tmpdir.name, "sa.json")
-    with open(credentials_path, "w",) as f:
+    with open(
+        credentials_path,
+        "w",
+    ) as f:
         json.dump(credentials_json, f)
 
     cred = credentials.Certificate(credentials_path)
