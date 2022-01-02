@@ -1,12 +1,20 @@
 from typing import Any, Dict, Optional, Set
 
 from fastapi.exceptions import HTTPException
+from jose import jwk
+from jose.backends.base import Key
 from pydantic import BaseModel, Field
 from starlette import status
 
 from .base import ScopedAuth, UserInfoAuth
 from .messages import NOT_VERIFIED
-from .verification import JWKS, ExtraVerifier
+from .verification import JWKS as BaseJWKS
+from .verification import ExtraVerifier
+
+
+class JWKS(BaseJWKS):
+    def _construct(self, jwks: Dict[str, Any]) -> Dict[str, Key]:
+        return {_jwk["kid"]: jwk.construct(_jwk) for _jwk in jwks.get("keys", [])}
 
 
 class Cognito(ScopedAuth):
@@ -25,7 +33,7 @@ class Cognito(ScopedAuth):
         auto_error: bool = True,
     ):
         url = f"https://cognito-idp.{region}.amazonaws.com/{userPoolId}/.well-known/jwks.json"
-        jwks = JWKS.fromurl(url)
+        jwks = JWKS(url=url)
         super().__init__(
             jwks,
             audience=client_id,
@@ -56,7 +64,7 @@ class CognitoCurrentUser(UserInfoAuth):
         self, region: str, userPoolId: str, client_id: str, *args: Any, **kwargs: Any,
     ):
         url = f"https://cognito-idp.{region}.amazonaws.com/{userPoolId}/.well-known/jwks.json"
-        jwks = JWKS.fromurl(url)
+        jwks = JWKS(url=url)
         super().__init__(
             jwks,
             user_info=self.user_info,

@@ -1,14 +1,39 @@
 from calendar import timegm
 from datetime import datetime
-from typing import Any, Dict
+from email.utils import parsedate_to_datetime
+from typing import Any, Dict, Optional
 
+import requests
 from fastapi import HTTPException
+from jose import jwk
+from jose.backends.base import Key
 from pydantic import BaseModel, Field
 from starlette import status
 
 from .base import UserInfoAuth
 from .messages import NOT_VERIFIED
-from .verification import JWKS, ExtraVerifier
+from .verification import JWKS as BaseJWKS
+from .verification import ExtraVerifier
+
+
+class JWKS(BaseJWKS):
+    def _construct(self, jwks: Dict[str, Any]) -> Dict[str, Key]:
+        return {
+            kid: jwk.construct(publickey, algorithm="RS256")
+            for kid, publickey in jwks.items()
+        }
+
+    def _set_expiration(self, resp: requests.Response) -> Optional[datetime]:
+        expires_header = resp.headers.get("expires")
+        if expires_header:
+            try:
+                return parsedate_to_datetime(expires_header)
+            except ValueError:
+                # Guard against an invalid header value and do not set an expiry.
+                # This won't happen unless Firebase messes up...
+                return None
+        else:
+            return None
 
 
 class FirebaseClaims(BaseModel):
@@ -25,8 +50,7 @@ class FirebaseCurrentUser(UserInfoAuth):
 
     def __init__(self, project_id: str, *args: Any, **kwargs: Any):
         url = "https://www.googleapis.com/robot/v1/metadata/x509/securetoken@system.gserviceaccount.com"
-        jwks = JWKS.firebase(url)
-
+        jwks = JWKS(url=url)
         super().__init__(
             jwks,
             *args,
