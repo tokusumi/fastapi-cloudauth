@@ -25,26 +25,26 @@ classifiers = [
 ]
 
 [tool.poetry.dependencies]
-python = "^3.6"
+python = ">=3.6.2,<4.0"
 fastapi = ">= 0.60.1, < 1.0"
 python-jose = {version = ">=3.3.0,<4.0.0", extras = ["cryptography"]}
 requests = "^2.24.0"
 
 [tool.poetry.dev-dependencies]
-pytest = "^5.4.3"
-pytest-cov = "^2.10.0"
-flake8 = "^3.8.3"
-mypy = "^0.782"
-black = "^19.10b0"
-isort = "^5.7.0"
+pytest = ">=6.2.4,<7.0.0"
+pytest-cov = ">=2.12.0,<4.0.0"
+flake8 = ">=3.8.3,<4.0.0"
+mypy = "0.910"
+black = "21.9b0"
+isort = ">=5.0.6,<6.0.0"
 uvicorn = ">=0.12.0,<0.14.0"
-botocore = "^1.17.32"
-boto3 = "^1.14.32"
-authlib = "^0.15.2"
-firebase-admin = "^4.4.0"
-auth0-python = "^3.14.0"
-pytest-mock = "^3.5.1"
-pytest-asyncio = "^0.14.0"
+botocore = ">=1.17.32"
+boto3 = ">=1.14.32"
+authlib = ">=0.15.2"
+firebase-admin = ">=4.4.0"
+auth0-python = ">=3.14.0"
+pytest-mock = ">=3.5.1"
+pytest-asyncio = ">=0.14.0"
 autoflake = "^1.4"
 
 [tool.isort]
