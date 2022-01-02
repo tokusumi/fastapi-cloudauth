@@ -50,6 +50,17 @@ async def test_malformed_token_handling():
     assert not await verifier.verify_token(http_auth_with_malformed_token)
 
 
+@pytest.mark.asyncio
+async def test_jwks_test_mode():
+    # instantiate null jwks obj (no querying jwks)
+    _jwks = JWKS.null()
+
+    # instantiate fixed jwks obj (no querying jwks)
+    dummy = Key(None, None)
+    _jwks = JWKS(fixed_keys={"test": dummy})
+    assert await _jwks.get_publickey("test") == dummy
+
+
 class DummyResp(Response):
     def __init__(self, expires: datetime) -> None:
         super().__init__()
