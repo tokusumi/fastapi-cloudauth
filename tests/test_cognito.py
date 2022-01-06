@@ -311,6 +311,7 @@ def test_extra_verify_id_token():
     # correct
     token = jwt.encode(
         {
+            "at_hash": "some-hash-that-isnt-checked",
             "sub": "dummy-ID",
             "exp": datetime.utcnow() + timedelta(hours=10),
             "iat": datetime.utcnow() - timedelta(hours=10),

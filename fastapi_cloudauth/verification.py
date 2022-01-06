@@ -205,7 +205,11 @@ class JWKsVerifier(Verifier):
                 "",
                 audience=self._aud,
                 issuer=self._iss,
-                options={"verify_signature": False, "verify_sub": False},  # done
+                options={
+                    "verify_signature": False,
+                    "verify_sub": False,
+                    "verify_at_hash": False,
+                },  # done
             )
         except jwt.ExpiredSignatureError as e:
             if self.auto_error:
