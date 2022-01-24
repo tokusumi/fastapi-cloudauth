@@ -274,7 +274,7 @@ class ScopedAuth(CloudAuth):
 
     def claim(self, schema: Optional[Type[BaseModel]] = None) -> "ScopedAuth":
         """User verification and validation shortcut to pass it into app arguments.
-        Use as (`auth` is this instanse and `app` is fastapi.FastAPI instanse):
+        Use as (`auth` is this instance and `app` is fastapi.FastAPI instanse):
         ```
         from fastapi import Depends
         from pydantic import BaseModel
