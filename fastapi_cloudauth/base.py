@@ -37,7 +37,7 @@ class CloudAuth(ABC):
         ...  # pragma: no cover
 
     def clone(self, instance: "CloudAuth") -> "CloudAuth":
-        """create clone instanse"""
+        """Create clone of this instance"""
         # In some case, Verifier can't pickle (deepcopy).
         # Tempolary put it aside to deepcopy. Then, undo it at the last line.
         if not isinstance(instance, CloudAuth):
@@ -59,7 +59,7 @@ class CloudAuth(ABC):
         ),
     ) -> Any:
         """User access/ID-token verification Shortcut to pass it into dependencies.
-        Use as (`auth` is this instanse and `app` is fastapi.FastAPI instanse):
+        Use as (where `auth` is this instance and `app` is fastapi.FastAPI instance):
         ```
         from fastapi import Depends
 
@@ -128,7 +128,7 @@ class UserInfoAuth(CloudAuth):
 
     def claim(self, schema: Optional[Type[BaseModel]] = None) -> "UserInfoAuth":
         """User verification and validation shortcut to pass it into app arguments.
-        Use as (`auth` is this instanse and `app` is fastapi.FastAPI instanse):
+        Use as (where `auth` is this instance and `app` is fastapi.FastAPI instance):
         ```
         from fastapi import Depends
         from pydantic import BaseModel
