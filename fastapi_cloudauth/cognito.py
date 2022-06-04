@@ -52,6 +52,9 @@ class CognitoClaims(BaseModel):
     username: str = Field(alias="cognito:username")
     email: str = Field(None, alias="email")
 
+    class Config:
+        allow_population_by_field_name = True
+
 
 class CognitoCurrentUser(UserInfoAuth):
     """
