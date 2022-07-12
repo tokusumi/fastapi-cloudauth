@@ -381,3 +381,33 @@ def test_verify_token():
         and e.detail == messages.NOT_AUTHENTICATED
     )
     _assert_verifier_no_error(token, verifier_no_error)
+
+
+@pytest.mark.unittest
+def test_verify_token_with_iat_grace_period():
+    verifier = JWKsVerifier(jwks=JWKS.null())
+    verifier_no_error = JWKsVerifier(jwks=JWKS.null(), auto_error=False)
+
+    # iat is slightly in the future
+    token = jwt.encode(
+        {
+            "sub": "dummy-ID",
+            "exp": datetime.utcnow() + timedelta(hours=10),
+            "iat": datetime.utcnow() + timedelta(seconds=1),
+        },
+        "dummy_secret",
+        headers={"alg": "HS256", "typ": "JWT", "kid": "dummy-kid"},
+    )
+    e = _assert_verifier(token, verifier)
+    assert e.status_code == HTTP_401_UNAUTHORIZED and e.detail == messages.NOT_VERIFIED
+    _assert_verifier_no_error(token, verifier_no_error)
+
+    verifier_with_grace = JWKsVerifier(jwks=JWKS.null(), iat_grace_period=1)
+    verifier_with_grace_no_error = JWKsVerifier(jwks=JWKS.null(), iat_grace_period=1, auto_error=False)
+
+    # Correct
+    verifier_with_grace._verify_claims(HTTPAuthorizationCredentials(scheme="a", credentials=token))
+    verified = verifier_with_grace_no_error._verify_claims(
+        HTTPAuthorizationCredentials(scheme="a", credentials=token)
+    )
+    assert verified != False
