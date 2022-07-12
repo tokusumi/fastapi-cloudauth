@@ -141,6 +141,7 @@ class JWKsVerifier(Verifier):
         audience: Optional[Union[str, List[str]]] = None,
         issuer: Optional[str] = None,
         auto_error: bool = True,
+        iat_grace_period: int = 0,
         *args: Any,
         extra: Optional[ExtraVerifier] = None,
         **kwargs: Any
@@ -153,6 +154,7 @@ class JWKsVerifier(Verifier):
         self._extra_verifier = extra
         self._aud = audience
         self._iss = issuer
+        self._iat_grace_period = iat_grace_period
 
     @property
     def auto_error(self) -> bool:
@@ -237,7 +239,7 @@ class JWKsVerifier(Verifier):
         if claims.get("iat"):
             iat = int(claims["iat"])
             now = timegm(datetime.utcnow().utctimetuple())
-            if now < iat:
+            if now < iat - self._iat_grace_period:
                 if self.auto_error:
                     raise HTTPException(
                         status_code=status.HTTP_401_UNAUTHORIZED, detail=NOT_VERIFIED

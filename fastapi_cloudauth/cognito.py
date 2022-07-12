@@ -31,6 +31,7 @@ class Cognito(ScopedAuth):
         client_id: str,
         scope_key: Optional[str] = "cognito:groups",
         auto_error: bool = True,
+        iat_grace_period: int = 0,
     ):
         url = f"https://cognito-idp.{region}.amazonaws.com/{userPoolId}/.well-known/jwks.json"
         jwks = JWKS(url=url)
@@ -40,6 +41,7 @@ class Cognito(ScopedAuth):
             issuer=f"https://cognito-idp.{region}.amazonaws.com/{userPoolId}",
             scope_key=scope_key,
             auto_error=auto_error,
+            iat_grace_period=iat_grace_period,
             extra=CognitoExtraVerifier(
                 client_id=client_id,
                 issuer=f"https://cognito-idp.{region}.amazonaws.com/{userPoolId}",

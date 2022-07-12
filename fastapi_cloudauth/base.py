@@ -193,6 +193,7 @@ class ScopedAuth(CloudAuth):
         scope_name: Optional[List[str]] = None,
         scope_key: Optional[str] = None,
         auto_error: bool = True,
+        iat_grace_period: int = 0,
         op: Operator = Operator._all,
         extra: Optional[ExtraVerifier] = None,
     ):
@@ -210,6 +211,7 @@ class ScopedAuth(CloudAuth):
             op=op,
             scope_key=self._scope_key,
             auto_error=self.auto_error,
+            iat_grace_period=iat_grace_period,
             extra=extra,
         )
 
