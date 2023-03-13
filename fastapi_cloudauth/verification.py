@@ -62,15 +62,13 @@ class JWKS:
         self.__expires: Optional[datetime] = None
         self.__refreshing = Event()
         self.__refreshing.set()
-        if self.__fixed_keys is None:
-            # query jwks from provider without mutex
-            self._refresh_keys()
+
 
     async def get_publickey(self, kid: str) -> Optional[Key]:
         if self.__fixed_keys is not None:
             return self.__fixed_keys.get(kid)
 
-        if self.__expires is not None:
+        if self.expires is not None:
             # Check expiration
             current_time = datetime.now(tz=self.__expires.tzinfo)
             if current_time >= self.__expires:
@@ -131,6 +129,8 @@ class JWKS:
 
     @property
     def expires(self) -> Optional[datetime]:
+        if not self.__expires:
+            self._refresh_keys()
         return self.__expires
 
 
