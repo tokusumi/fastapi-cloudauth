@@ -149,7 +149,7 @@ async def test_refresh_jwks_multiple(mocker):
     )
     # jwks was refreshed only at once (counter incremented once).
     # all three return publickey from refreshed jwks.
-    assert list(res) == [2, 2, 2]
+    assert list(res) == [1, 1, 1]
 
 
 @pytest.mark.unittest
