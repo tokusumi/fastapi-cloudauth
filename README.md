@@ -4,12 +4,13 @@
 [![codecov](https://codecov.io/gh/tokusumi/fastapi-cloudauth/branch/master/graph/badge.svg)](https://codecov.io/gh/tokusumi/fastapi-cloudauth)
 [![PyPI version](https://badge.fury.io/py/fastapi-cloudauth.svg)](https://badge.fury.io/py/fastapi-cloudauth)
 
-fastapi-cloudauth standardizes and simplifies the integration between FastAPI and cloud authentication services (AWS Cognito, Auth0, Firebase Authentication).
+fastapi-cloudauth standardizes and simplifies the integration between FastAPI and cloud authentication services (AWS
+Cognito, Auth0, Firebase Authentication).
 
 ## Features
 
 * [X] Verify access/id token: standard JWT validation (signature, expiration), token audience claims, etc.
-* [X] Verify permissions based on scope (or groups) within access token and extract user info 
+* [X] Verify permissions based on scope (or groups) within access token and extract user info
 * [X] Get the detail of login user info (name, email, etc.) within ID token
 * [X] Dependency injection for verification/getting user, powered by [FastAPI](https://github.com/tiangolo/fastapi)
 * [X] Support for:
@@ -32,10 +33,11 @@ $ pip install fastapi-cloudauth
 ### Pre-requirements
 
 * Check `region`, `userPoolID` and `AppClientID` of AWS Cognito that you manage to
-* Create a user's assigned `read:users` permission in AWS Cognito 
+* Create a user's assigned `read:users` permission in AWS Cognito
 * Get Access/ID token for the created user
 
-NOTE: access token is valid for verification, scope-based authentication, and getting user info (optional). ID token is valid for verification and getting full user info from claims.
+NOTE: access token is valid for verification, scope-based authentication, and getting user info (optional). ID token is
+valid for verification and getting full user info from claims.
 
 ### Create it
 
@@ -49,10 +51,11 @@ from fastapi_cloudauth.cognito import Cognito, CognitoCurrentUser, CognitoClaims
 
 app = FastAPI()
 auth = Cognito(
-    region=os.environ["REGION"], 
+    region=os.environ["REGION"],
     userPoolId=os.environ["USERPOOLID"],
     client_id=os.environ["APPCLIENTID"]
 )
+
 
 @app.get("/", dependencies=[Depends(auth.scope(["read:users"]))])
 def secure():
@@ -71,7 +74,7 @@ def secure_access(current_user: AccessUser = Depends(auth.claim(AccessUser))):
 
 
 get_current_user = CognitoCurrentUser(
-    region=os.environ["REGION"], 
+    region=os.environ["REGION"],
     userPoolId=os.environ["USERPOOLID"],
     client_id=os.environ["APPCLIENTID"]
 )
@@ -106,13 +109,12 @@ You can supply a token and try the endpoint interactively.
 
 ![Swagger UI](https://raw.githubusercontent.com/tokusumi/fastapi-cloudauth/master/docs/src/authorize_in_doc.jpg)
 
-
 ## Example (Auth0)
 
 ### Pre-requirement
 
 * Check `domain`, `customAPI` (Audience) and `ClientID` of Auth0 that you manage to
-* Create a user assigned `read:users` permission in Auth0 
+* Create a user assigned `read:users` permission in Auth0
 * Get Access/ID token for the created user
 
 ### Create it
@@ -160,7 +162,6 @@ def secure_user(current_user: Auth0Claims = Depends(get_current_user)):
 
 Try to run the server and see interactive UI in the same way.
 
-
 ## Example (Firebase Authentication)
 
 ### Pre-requirement
@@ -197,7 +198,8 @@ We can get values for the current user from access/ID token by writing a few lin
 
 ### Custom Claims
 
-For Auth0, the ID token contains the following extra values (Ref at [Auth0 official doc](https://auth0.com/docs/tokens)):
+For Auth0, the ID token contains the following extra values (Ref
+at [Auth0 official doc](https://auth0.com/docs/tokens)):
 
 ```json
 {
@@ -224,9 +226,11 @@ Here is sample code for extracting extra user information (adding `user_id`) fro
 from pydantic import Field
 from fastapi_cloudauth.auth0 import Auth0Claims  # base current user info model (inheriting `pydantic`).
 
+
 # extend current user info model by `pydantic`.
 class CustomAuth0Claims(Auth0Claims):
     user_id: str = Field(alias="sub")
+
 
 get_current_user = Auth0CurrentUser(domain=DOMAIN, client_id=CLIENTID)
 get_current_user.user_info = CustomAuth0Claims  # override user info model with a custom one.
@@ -237,6 +241,7 @@ Or, we can set new custom claims as follows:
 ```python3
 get_user_detail = get_current_user.claim(CustomAuth0Claims)
 
+
 @app.get("/new/")
 async def detail(user: CustomAuth0Claims = Depends(get_user_detail)):
     return f"Hello, {user.user_id}"
@@ -244,15 +249,17 @@ async def detail(user: CustomAuth0Claims = Depends(get_user_detail)):
 
 ### Raw payload
 
-If you don't require `pydantic` data serialization (validation), `FastAPI-CloudAuth` has an option to extract the raw payload.
+If you don't require `pydantic` data serialization (validation), `FastAPI-CloudAuth` has an option to extract the raw
+payload.
 
 All you need is:
 
 ```python3
 get_raw_info = get_current_user.claim(None)
 
+
 @app.get("/new/")
-async def raw_detail(user = Depends(get_raw_info)):
+async def raw_detail(user=Depends(get_raw_info)):
     # user has all items (ex. iss, sub, aud, exp, ... it depends on passed token) 
     return f"Hello, {user.get('sub')}"
 ```
@@ -272,13 +279,29 @@ Use as (`auth` is this instanse and `app` is fastapi.FastAPI instanse):
 from fastapi import Depends
 from fastapi_cloudauth import Operator
 
+
 @app.get("/", dependencies=[Depends(auth.scope(["allowned", "scopes"]))])
 def api_all_scope():
     return "user has 'allowned' and 'scopes' scopes"
 
+
 @app.get("/", dependencies=[Depends(auth.scope(["allowned", "scopes"], op=Operator._any))])
 def api_any_scope():
     return "user has at least one of scopes (allowned, scopes)"
+```
+
+## Unit testing
+
+For testing, fastAPI has a comprehensive document about how to use `overrider_dependencies` and `TestClient` to test the
+endpoints.
+
+Please refer to [Testing Dependencies with Overrides](https://fastapi.tiangolo.com/advanced/testing-dependencies/).
+
+```python
+client = TestClient(app)
+
+app.dependency_overrides[auth.scope(["allowned", "scopes"], op=Operator._any)] = lambda: True
+
 ```
 
 ## Development - Contributing
