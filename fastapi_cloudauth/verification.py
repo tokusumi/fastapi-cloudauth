@@ -66,6 +66,19 @@ class JWKS:
             # query jwks from provider without mutex
             self._refresh_keys()
 
+    def __eq__(self, other: object) -> bool:
+        """
+        Compare two JWKS instance
+        Args:
+            other: JWKS instance
+        """
+        if isinstance(other, JWKS):
+            return self.__url == other.__url
+        return False
+
+    def __hash__(self) -> int:
+        return hash(self.__url)
+
     async def get_publickey(self, kid: str) -> Optional[Key]:
         if self.__fixed_keys is not None:
             return self.__fixed_keys.get(kid)
