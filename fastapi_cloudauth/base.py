@@ -196,6 +196,7 @@ class ScopedAuth(CloudAuth):
         op: Operator = Operator._all,
         extra: Optional[ExtraVerifier] = None,
     ):
+        self.jwks = jwks
         self.user_info = user_info
         self.auto_error = auto_error
         self._scope_name = scope_name
@@ -212,6 +213,14 @@ class ScopedAuth(CloudAuth):
             auto_error=self.auto_error,
             extra=extra,
         )
+
+    def __eq__(self, other: object) -> bool:
+        if not isinstance(other, ScopedAuth):
+            return False
+        return self.jwks == other.jwks and self.scope_name == other.scope_name
+
+    def __hash__(self) -> int:
+        return hash((self.jwks, "".join(self.scope_name or [])))
 
     @property
     def verifier(self) -> ScopedJWKsVerifier:
