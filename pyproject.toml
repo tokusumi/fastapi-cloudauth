@@ -53,5 +53,5 @@ profile = "black"
 known_third_party = ["fastapi", "pydantic", "starlette"]
 
 [build-system]
-requires = ["poetry>=1.1.12"]
-build-backend = "poetry.masonry.api"
+requires = ["poetry-core>=1.0.0"]
+build-backend = "poetry.core.masonry.api"
